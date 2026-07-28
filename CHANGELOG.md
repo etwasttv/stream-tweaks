@@ -1,0 +1,82 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.3.1] - 2026-07-27
+
+### Added
+- NeoForge に対応（Fabric / NeoForge のマルチローダー構成へ移行）
+
+### Changed
+- リリース生成物のファイル名に Minecraft バージョンを含めるよう変更
+
+### Fixed
+- リリース生成物のファイル名プレフィックスの typo を修正（`streamer-tweeks` → `stream-tweaks`）
+
+## [0.3.0] - 2026-07-26
+### Added
+- Twitch でモデレーターがチャットメッセージを削除した際、Minecraft のチャット欄からも該当行を消すように対応（`channel.chat.message_delete` を `/twitch connect` 時に自動購読）
+  - 対応するのはモデレーターによる個別メッセージ削除のみ。timeout / ban / チャット全消去による一括削除は対象外
+  - 削除されたメッセージの本文は `logs/latest.log` には平文で残る（チャット欄の表示のみを消す）
+
+### Changed
+- Minecraft 26.2 へアップグレード
+- EventSub の購読管理単位を「チャンネル」から「チャンネル × イベントタイプ」へ変更（片方のイベントタイプの購読に失敗しても、次回同期で欠けた分だけ再作成される）
+
+### Fixed
+- EventSub の reconnect 時に旧接続と新接続で受信バッファを共有しており、JSON が混線しうる問題を修正
+- EventSub の reconnect 時に、閉じるべき旧接続ではなく確立したばかりの新接続を閉じていた問題を修正
+- EventSub の reconnect 完了後に旧接続の切断イベントで新セッションが破棄されていた問題を修正
+
+## [0.2.0] - 2026-07-25
+### Added
+- ModMenu 統合：コンフィグ画面から Twitch 認証状態・接続チャンネルの確認、login/logout、チャンネルの connect/disconnect が可能に
+- Twitch アニメーション絵文字（GIF）対応
+- チャット欄のユーザー名を Twitch の設定色で表示
+
+### Changed
+- Minecraft 26.1.2 + Java 25 へアップグレード
+- ModMenu 18.0.0-alpha.8 へ更新
+
+### Fixed
+- コンフィグ画面の disconnect ボタンが重なる問題を修正
+- 非同期処理後のフォーカス回復に `clearAndInit()` を使用するよう修正
+- Minecraft 1.21.8 レンダリングのテキストカラーにアルファチャンネルを追加
+- `/twitch` コマンドの非同期処理完了後のフィードバック表示がクライアントスレッド外から実行される問題を修正
+- 絵文字が他の文字より下にずれ、チャット背景からはみ出して表示される問題を修正
+
+## [0.1.2] - 2026-05-22
+### Added
+- Static Emoji の表示
+- icon を追加
+- `/twitch logout` コマンドを追加（logout 時に購読中の全チャンネルを自動 disconnect）
+- `/twitch login` 認証成功時に Minecraft Chat へ成功メッセージを表示
+
+### Changed
+- `/twitch disconnect` 実行時に未認証の場合、`/twitch login` への誘導メッセージを表示するよう変更
+- リリース生成物のファイル名プレフィックスを `streamer-tweeks` に変更
+
+### Fixed
+- `/twitch connect` 実行時に未認証の場合、例外ではなく `/twitch login` を促すメッセージを表示するよう修正
+- Twitch API から 401 が返った際に再認証を促すエラーメッセージを表示するよう修正
+
+## [0.1.1] - 2025-09-27
+### Added
+- Twitch OAuth 認証
+- Twitch Chat　の Minecraft ゲーム内表示
+- Changelog の自動化
+
+### Changed
+
+### Fixed
