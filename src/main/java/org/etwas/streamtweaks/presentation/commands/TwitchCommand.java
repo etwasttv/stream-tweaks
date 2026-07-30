@@ -6,10 +6,12 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.concurrent.Executor;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import org.etwas.streamtweaks.application.TwitchApplicationService;
+import org.etwas.streamtweaks.mod.StreamTweaksConfigScreen;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationResult;
 import org.etwas.streamtweaks.twitch.core.Login;
 
@@ -43,7 +45,19 @@ public final class TwitchCommand<S> {
                                 })
                                 .executes(ctx -> handleDisconnect(ctx, feedbackSenderFactory))))
                 .then(LiteralArgumentBuilder.<S>literal("logout")
-                        .executes(ctx -> handleLogout(ctx, feedbackSenderFactory)));
+                        .executes(ctx -> handleLogout(ctx, feedbackSenderFactory)))
+                .then(LiteralArgumentBuilder.<S>literal("config").executes(this::handleConfig));
+    }
+
+    private int handleConfig(CommandContext<S> ctx) {
+        // ChatScreen はコマンド実行直後に自身を setScreen(null) で閉じるため、
+        // ここで同期的に setScreen すると閉じる処理で上書きされてしまう。
+        // clientExecutor で次の実行キューに回し、閉じる処理が終わってから画面を開く。
+        clientExecutor.execute(() -> {
+            Minecraft minecraft = Minecraft.getInstance();
+            minecraft.gui.setScreen(new StreamTweaksConfigScreen(minecraft.gui.screen()));
+        });
+        return 1;
     }
 
     private int handleLogin(CommandContext<S> ctx, FeedbackSenderFactory<S> feedbackSenderFactory) {

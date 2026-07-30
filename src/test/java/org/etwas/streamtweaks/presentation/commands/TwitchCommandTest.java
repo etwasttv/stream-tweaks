@@ -91,6 +91,19 @@ class TwitchCommandTest {
         org.junit.jupiter.api.Assertions.assertEquals(2, feedbacks.size());
     }
 
+    @Test
+    void handleConfig_schedulesScreenOpenViaClientExecutor() throws CommandSyntaxException {
+        RecordingExecutor executor = new RecordingExecutor();
+        CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+        TwitchCommand<Object> command = new TwitchCommand<>(applicationService, executor);
+        dispatcher.register(command.build(source -> feedback -> {}));
+
+        int result = dispatcher.execute("twitch config", new Object());
+
+        assertEquals(1, result);
+        assertEquals(1, executor.pendingCount());
+    }
+
     // --- connect suggestions ---
 
     @Test
@@ -146,6 +159,10 @@ class TwitchCommandTest {
 
         void runNext() {
             commands.remove().run();
+        }
+
+        int pendingCount() {
+            return commands.size();
         }
     }
 }
