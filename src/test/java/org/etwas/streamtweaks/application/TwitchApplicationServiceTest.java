@@ -190,4 +190,58 @@ class TwitchApplicationServiceTest {
         verify(subscriptionService, times(2)).close();
         verify(authService, times(2)).logout();
     }
+
+    // --- suggestOwnChannelLogin ---
+
+    @Test
+    void suggestOwnChannelLogin_whenNotAuthenticated_returnsEmpty() {
+        when(authService.getAuthenticatedDisplayName()).thenReturn(Optional.empty());
+
+        assertEquals(Optional.empty(), service.suggestOwnChannelLogin());
+    }
+
+    @Test
+    void suggestOwnChannelLogin_whenAuthenticatedButNotConnected_returnsOwnLogin() {
+        when(authService.getAuthenticatedDisplayName()).thenReturn(Optional.of("testuser"));
+        when(apiClient.getUserId(new Login("otherchannel")))
+                .thenReturn(CompletableFuture.completedFuture(new UserId("broadcaster1")));
+        when(subscriptionService.subscribe(new UserId("broadcaster1")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        service.connect(new Login("otherchannel")).join();
+
+        assertEquals(Optional.of("testuser"), service.suggestOwnChannelLogin());
+    }
+
+    @Test
+    void suggestOwnChannelLogin_whenAuthenticatedAndAlreadyConnected_returnsEmpty() {
+        when(authService.getAuthenticatedDisplayName()).thenReturn(Optional.of("testuser"));
+        when(apiClient.getUserId(new Login("testuser")))
+                .thenReturn(CompletableFuture.completedFuture(new UserId("broadcaster1")));
+        when(subscriptionService.subscribe(new UserId("broadcaster1")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        service.connect(new Login("testuser")).join();
+
+        assertEquals(Optional.empty(), service.suggestOwnChannelLogin());
+    }
+
+    @Test
+    void suggestOwnChannelLogin_whenAuthenticatedAndAlreadyConnectedWithDifferentCase_returnsEmpty() {
+        when(authService.getAuthenticatedDisplayName()).thenReturn(Optional.of("TestUser"));
+        when(apiClient.getUserId(new Login("testuser")))
+                .thenReturn(CompletableFuture.completedFuture(new UserId("broadcaster1")));
+        when(subscriptionService.subscribe(new UserId("broadcaster1")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        service.connect(new Login("testuser")).join();
+
+        assertEquals(Optional.empty(), service.suggestOwnChannelLogin());
+    }
+
+    @Test
+    void suggestOwnChannelLogin_loadsCredentialOnlyOnce() {
+        when(authService.getAuthenticatedDisplayName()).thenReturn(Optional.of("testuser"));
+
+        service.suggestOwnChannelLogin();
+
+        verify(authService, times(1)).getAuthenticatedDisplayName();
+    }
 }

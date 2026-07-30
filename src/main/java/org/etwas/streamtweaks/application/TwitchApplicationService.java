@@ -2,6 +2,7 @@ package org.etwas.streamtweaks.application;
 
 import java.net.URI;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -72,5 +73,23 @@ public final class TwitchApplicationService {
 
     public Set<Login> getSubscribedLogins() {
         return Collections.unmodifiableSet(subscribedLogins);
+    }
+
+    /**
+     * 自分のチャンネルへの接続をサジェストすべきかどうかを、認証情報の読み込み1回だけで判定する。
+     *
+     * <p>未認証、または認証済みだが既に自分のチャンネルへ接続済みの場合は {@link Optional#empty()} を返す。
+     * 認証済みかつ未接続の場合のみ、自分のログイン名を返す。呼び出し側で {@code isAuthenticated()} /
+     * {@code getAuthenticatedLogin()} を個別に呼び出すと、そのたびに認証情報ファイルへのディスクI/Oが発生するため、
+     * このメソッドで判定を完結させることでI/O回数を1回に抑える。
+     */
+    public Optional<String> suggestOwnChannelLogin() {
+        String authenticatedLogin = getAuthenticatedLogin();
+        if (authenticatedLogin == null) {
+            return Optional.empty();
+        }
+        boolean alreadyConnected =
+                subscribedLogins.stream().anyMatch(login -> login.value().equalsIgnoreCase(authenticatedLogin));
+        return alreadyConnected ? Optional.empty() : Optional.of(authenticatedLogin);
     }
 }
