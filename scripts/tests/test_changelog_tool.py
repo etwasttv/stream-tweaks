@@ -396,13 +396,13 @@ class RealChangelogTest(unittest.TestCase):
                 self.assertIn(line, filtered)
 
     def test_all_sections_survive_filtering_unchanged_content(self):
-        """タグが無い既存 CHANGELOG は、どのローダーで絞り込んでも全項目が残る。"""
+        """タグの無い箇条書きは、どのローダーで絞り込んでも全項目が残る。"""
         for name, body in self.bodies.items():
             for loader in ("fabric", "neoforge"):
                 with self.subTest(section=name, loader=loader):
                     filtered = ct.filter_section_body(body, frozenset({loader}), strip_tags=True)
                     for line in body.splitlines():
-                        if line.strip().startswith("- "):
+                        if line.strip().startswith("- ") and ct._extract_loaders(line) is None:
                             self.assertIn(line.rstrip(), filtered)
 
 
