@@ -28,6 +28,10 @@ public final class TwitchCommand<S> {
                         .executes(ctx -> handleLogin(ctx, feedbackSenderFactory)))
                 .then(LiteralArgumentBuilder.<S>literal("connect")
                         .then(RequiredArgumentBuilder.<S, String>argument("login", StringArgumentType.string())
+                                .suggests((ctx, builder) -> {
+                                    applicationService.suggestOwnChannelLogin().ifPresent(builder::suggest);
+                                    return builder.buildFuture();
+                                })
                                 .executes(ctx -> handleConnect(ctx, feedbackSenderFactory))))
                 .then(LiteralArgumentBuilder.<S>literal("disconnect")
                         .then(RequiredArgumentBuilder.<S, String>argument("login", StringArgumentType.string())

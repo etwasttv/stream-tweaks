@@ -26,8 +26,9 @@ public class StreamTweaksConfigScreen extends Screen {
     private static final int Y_AUTH_STATUS = 62;
     private static final int Y_CONNECT_LABEL = 82;
     private static final int Y_CONNECT_FIELD = 96;
-    private static final int Y_CHANNEL_LABEL = 128;
-    private static final int Y_CHANNEL_LIST_START = 142;
+    private static final int Y_CONNECT_OWN_FIELD = 116;
+    private static final int Y_CHANNEL_LABEL = 148;
+    private static final int Y_CHANNEL_LIST_START = 162;
 
     private final Screen parent;
 
@@ -51,7 +52,10 @@ public class StreamTweaksConfigScreen extends Screen {
         int leftX = centerX - LEFT_OFFSET;
 
         TwitchApplicationService service = TwitchApplicationServices.get();
-        boolean authenticated = service != null && service.getAuthenticatedLogin() != null;
+        // 認証情報ファイルの読み込みは init() あたり1回に抑える。読み取った値を使い回し、
+        // 自チャンネル接続済みかどうかはメモリ上の subscribedLogins（ファイルI/Oなし）で判定する。
+        String authenticatedLogin = service != null ? service.getAuthenticatedLogin() : null;
+        boolean authenticated = authenticatedLogin != null;
 
         subscribedLogins = service != null ? List.copyOf(service.getSubscribedLogins()) : List.of();
 
@@ -87,6 +91,15 @@ public class StreamTweaksConfigScreen extends Screen {
                 .build();
         connectBtn.active = authenticated && !busy && isValidChannelName(channelInputText);
         this.addRenderableWidget(connectBtn);
+
+        boolean connectedToOwnChannel = authenticatedLogin != null
+                && subscribedLogins.stream().anyMatch(login -> login.value().equalsIgnoreCase(authenticatedLogin));
+        Button connectOwnBtn = Button.builder(
+                        Component.literal("Connect to My Channel"), button -> doConnectOwnChannel(service))
+                .bounds(leftX, Y_CONNECT_OWN_FIELD, 214, BUTTON_HEIGHT)
+                .build();
+        connectOwnBtn.active = authenticated && !busy && !connectedToOwnChannel;
+        this.addRenderableWidget(connectOwnBtn);
 
         int disconnectX = leftX + 160;
         for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
@@ -233,6 +246,38 @@ public class StreamTweaksConfigScreen extends Screen {
                             return;
                         }
                         StreamTweaksCommon.LOGGER.error("Failed to connect to channel", ex);
+                        busy = false;
+                        reinitialize();
+                    });
+                    return null;
+                });
+    }
+
+    private void doConnectOwnChannel(TwitchApplicationService service) {
+        if (service == null || busy) {
+            return;
+        }
+        String ownLogin = service.getAuthenticatedLogin();
+        if (ownLogin == null) {
+            return;
+        }
+        busy = true;
+        Login target = new Login(ownLogin);
+        reinitialize();
+        service.connect(target)
+                .thenRun(() -> Minecraft.getInstance().execute(() -> {
+                    if (this.minecraft == null || this.minecraft.gui.screen() != this) {
+                        return;
+                    }
+                    busy = false;
+                    reinitialize();
+                }))
+                .exceptionally(ex -> {
+                    Minecraft.getInstance().execute(() -> {
+                        if (this.minecraft == null || this.minecraft.gui.screen() != this) {
+                            return;
+                        }
+                        StreamTweaksCommon.LOGGER.error("Failed to connect to own channel", ex);
                         busy = false;
                         reinitialize();
                     });
