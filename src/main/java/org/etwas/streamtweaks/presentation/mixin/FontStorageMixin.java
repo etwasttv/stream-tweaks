@@ -20,8 +20,18 @@ public abstract class FontStorageMixin {
     /**
      * createFontSet() の戻り時に EmoteFont を注入する。
      * minecraft:default (チャットフォント) のみが対象。
+     *
+     * <p>{@code remap = false} について: このプロジェクトは Fabric / NeoForge / Forge の
+     * 全ローダーで Mojang公式マッピング (Mojmap) を直接使い、SRG/intermediary へのリマップは
+     * どのローダーでも行わない。ところが Forge (FG7) の Mixinアノテーションプロセッサ
+     * (org.spongepowered:mixin:0.8.7:processor) が内蔵する {@code ObfuscationServiceMCP} は
+     * {@code official} マッピングチャンネルを認識せず、{@code remap} 未指定 (デフォルト true)
+     * のままだと SRG/notch 向けの obfuscation mapping を探しに行って解決できず
+     * コンパイルエラーになる (公式の MinecraftForge/MDKExamples の mixins-only/fg7 サンプルでも
+     * 同様に {@code remap = false} が明示されている)。Fabric/NeoForge 側はそもそもこの
+     * ObfuscationServiceMCP の対象外なので影響を受けない。
      */
-    @Inject(method = "createFontSet", at = @At("RETURN"))
+    @Inject(method = "createFontSet", at = @At("RETURN"), remap = false)
     private void onCreateFontSet(
             Identifier id,
             List<GlyphProvider.Conditional> providers,

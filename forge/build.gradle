@@ -1,0 +1,95 @@
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle'
+    id 'maven-publish'
+}
+
+base {
+    archivesName = "${rootProject.archives_base_name}-forge-mc${rootProject.minecraft_version}"
+}
+
+dependencies {
+    implementation "com.google.code.gson:gson:${rootProject.gson_version}"
+    implementation minecraft.dependency("net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}")
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
+}
+
+sourceSets {
+    main {
+        // Loader-agnostic code lives in the root source tree; Forge-only code lives in forge/src.
+        java {
+            srcDir '../src/main/java'
+        }
+        resources {
+            srcDir '../src/main/resources'
+        }
+    }
+}
+
+processResources {
+    inputs.properties(
+            "minecraft_version": rootProject.minecraft_version,
+            "forge_mod_id": rootProject.forge_mod_id,
+            "mod_name": rootProject.mod_name,
+            "mod_version": project.version,
+            "forge_version": rootProject.forge_version)
+    filteringCharset = "UTF-8"
+
+    filesMatching("META-INF/mods.toml") {
+        expand(
+                "minecraft_version": rootProject.minecraft_version,
+                "forge_mod_id": rootProject.forge_mod_id,
+                "mod_name": rootProject.mod_name,
+                "mod_version": project.version,
+                "forge_version": rootProject.forge_version)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: rootProject.minecraft_version
+
+    runs {
+        configureEach {
+            workingDir = file("../run/forge")
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+            args "--mixin.config=stream-tweaks.mixins.json"
+            mods {
+                streamTweaks {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            client = true
+        }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+jar {
+    manifest {
+        attributes([
+            'MixinConfigs': 'stream-tweaks.mixins.json'
+        ])
+    }
+    from(rootProject.file("LICENSE.txt")) {
+        rename { "${it}_${rootProject.archives_base_name}" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = "${rootProject.archives_base_name}-forge"
+            from components.java
+        }
+    }
+}

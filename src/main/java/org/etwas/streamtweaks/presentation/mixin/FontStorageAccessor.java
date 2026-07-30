@@ -7,15 +7,20 @@ import net.minecraft.client.gui.font.FontSet;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
+/**
+ * {@code remap = false} については {@link FontStorageMixin} のクラスコメントを参照
+ * (Forge の Mixin AP が {@code official} マッピングチャンネルを認識しないための対処で、
+ * Fabric/NeoForge には影響しない)。
+ */
 @Mixin(FontSet.class)
 public interface FontStorageAccessor {
 
-    @Accessor("activeProviders")
+    @Accessor(value = "activeProviders", remap = false)
     List<GlyphProvider> getActiveProviders();
 
-    @Accessor("activeProviders")
+    @Accessor(value = "activeProviders", remap = false)
     void setActiveProviders(List<GlyphProvider> providers);
 
-    @Accessor("glyphCache")
+    @Accessor(value = "glyphCache", remap = false)
     CodepointMap<?> getGlyphCache();
 }
