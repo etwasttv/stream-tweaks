@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.3.2] - 2026-07-31
+
+### Added
 - 認証済みユーザー自身のチャンネルへワンクリックで接続できるボタンを設定画面に追加
 - `/twitch connect` コマンドで、認証ユーザーが未接続の場合に自分のチャンネル名をサジェスト（補完候補）に表示するよう対応
 - [neoforge] Mod 一覧画面の Config ボタンから設定 GUI を開けるよう対応（Fabric の ModMenu 連携と同じ画面）
@@ -18,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ## [0.3.1] - 2026-07-27
-
 ### Added
 - NeoForge に対応（Fabric / NeoForge のマルチローダー構成へ移行）
 
