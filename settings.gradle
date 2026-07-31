@@ -12,6 +12,13 @@ pluginManagement {
     }
 }
 
+plugins {
+    // ForgeGradle の一部タスク（Eclipse用 Slime Launcher 設定生成など）は
+    // このモッドの Java バージョンとは無関係に固定の Java 8 ツールチェインを要求する。
+    // ローカルに Java 8 が無い環境でも自動ダウンロードできるようにする。
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 dependencyResolutionManagement {
     repositoriesMode = RepositoriesMode.PREFER_PROJECT
     repositories {
