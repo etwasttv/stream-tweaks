@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import org.etwas.streamtweaks.application.TwitchApplicationService;
+import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
+import org.etwas.streamtweaks.config.infra.FileStreamTweaksSettingsRepository;
 import org.etwas.streamtweaks.mod.platform.ClientPlatform;
 import org.etwas.streamtweaks.mod.platform.TwitchCommandRegistrar;
 import org.etwas.streamtweaks.presentation.chat.ChatRowRemover;
@@ -67,6 +69,14 @@ public final class TwitchClientBootstrap {
         var badgeDownloader = new BadgeDownloader(badgesCacheDir);
         var badgePuaMapping = new BadgePuaMapping();
 
+        var settingsRepository = new FileStreamTweaksSettingsRepository(
+                platform.configDir().resolve("stream-tweaks").resolve("stream-tweaks-config.json"));
+        var settingsStore = new StreamTweaksSettingsStore(settingsRepository);
+        // 設定画面（StreamTweaksConfigScreen）はUIレイヤーであり、コンポジションルートである
+        // ここで組み立てたインスタンスを直接受け取れないため、TwitchApplicationServicesと
+        // 同様の静的ホルダー経由で公開する。
+        StreamTweaksSettingsServices.set(settingsStore);
+
         var callbackServer = new LocalCallbackServer();
         var credentialRepository = new FileTwitchCredentialRepository(
                 platform.configDir().resolve("stream-tweaks").resolve("twitch-credentials.json"));
@@ -91,6 +101,7 @@ public final class TwitchClientBootstrap {
                 badgePuaMapping,
                 badgeDownloader,
                 badgeCatalogRepository,
+                settingsStore,
                 gson,
                 integratedChatMessagePresenter);
         var chatMessageDeletePresenter =

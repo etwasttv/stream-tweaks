@@ -7,11 +7,13 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import org.etwas.streamtweaks.application.TwitchApplicationService;
+import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
 import org.etwas.streamtweaks.twitch.core.Login;
 
 public class StreamTweaksConfigScreen extends Screen {
@@ -27,8 +29,10 @@ public class StreamTweaksConfigScreen extends Screen {
     private static final int Y_CONNECT_LABEL = 82;
     private static final int Y_CONNECT_FIELD = 96;
     private static final int Y_CONNECT_OWN_FIELD = 116;
-    private static final int Y_CHANNEL_LABEL = 148;
-    private static final int Y_CHANNEL_LIST_START = 162;
+    private static final int Y_DISPLAY_SETTINGS_LABEL = 148;
+    private static final int Y_SHOW_BADGES_TOGGLE = 162;
+    private static final int Y_CHANNEL_LABEL = 194;
+    private static final int Y_CHANNEL_LIST_START = 208;
 
     private final Screen parent;
 
@@ -101,6 +105,22 @@ public class StreamTweaksConfigScreen extends Screen {
         connectOwnBtn.active = authenticated && !busy && !connectedToOwnChannel;
         this.addRenderableWidget(connectOwnBtn);
 
+        StreamTweaksSettingsStore settingsStore = StreamTweaksSettingsServices.get();
+        if (settingsStore != null) {
+            CycleButton<Boolean> showBadgesBtn = CycleButton.onOffBuilder(settingsStore.showBadges())
+                    .create(
+                            leftX,
+                            Y_SHOW_BADGES_TOGGLE,
+                            214,
+                            BUTTON_HEIGHT,
+                            Component.literal("Show Twitch Badges"),
+                            (button, value) -> settingsStore.setShowBadges(value));
+            // 他のウィジェットと異なり意図的に .active = !busy を設定していない。
+            // このトグルはネットワークI/Oを伴わないローカル設定の変更のみのため、
+            // ログイン/ログアウト/接続処理中（busy中）でも操作可能にしてよいという設計判断による。
+            this.addRenderableWidget(showBadgesBtn);
+        }
+
         int disconnectX = leftX + 160;
         for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
             final Login target = entry.getKey();
@@ -143,6 +163,8 @@ public class StreamTweaksConfigScreen extends Screen {
         }
 
         context.text(this.font, Component.literal("Connect to Channel:"), leftX, Y_CONNECT_LABEL, LABEL_COLOR);
+
+        context.text(this.font, Component.literal("Display Settings:"), leftX, Y_DISPLAY_SETTINGS_LABEL, LABEL_COLOR);
 
         context.text(this.font, Component.literal("Connected Channels:"), leftX, Y_CHANNEL_LABEL, LABEL_COLOR);
 
