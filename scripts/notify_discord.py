@@ -41,10 +41,12 @@ FALLBACK_STYLE = ("📦 Build", 0xE74C3C, "Build")
 FAILURE_COLOR = 0xE74C3C
 
 LOADER_LABELS = {
-    "both": "Fabric & NeoForge",
+    "all": "Fabric & NeoForge & Forge",
     "fabric": "Fabric",
     "neoforge": "NeoForge",
+    "forge": "Forge",
     "fabric,neoforge": "Fabric & NeoForge",
+    "fabric,neoforge,forge": "Fabric & NeoForge & Forge",
 }
 
 UNKNOWN = "unknown"
@@ -201,7 +203,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--channel", default="", help="リリースチャンネル (alpha / beta / release)")
     parser.add_argument("--tag", default="", help="リリースタグ")
     parser.add_argument("--mc", default="", help="対象 Minecraft バージョン")
-    parser.add_argument("--loaders", default="", help="公開したローダー (both / fabric / neoforge)")
+    parser.add_argument("--loaders", default="", help="公開したローダー (all / fabric / neoforge / forge)")
     parser.add_argument("--run-url", default="", help="GitHub Actions の実行 URL")
     parser.add_argument("--notes-file", default="", help="リリースノートのファイルパス（成功時のみ使用）")
     parser.add_argument(

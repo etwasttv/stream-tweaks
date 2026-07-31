@@ -39,5 +39,25 @@ class PostTest(unittest.TestCase):
         self.assertEqual(request.get_header("User-agent"), nd.USER_AGENT)
 
 
+class LoaderLabelTest(unittest.TestCase):
+    def test_known_labels(self):
+        self.assertEqual(nd.loader_label("fabric"), "Fabric")
+        self.assertEqual(nd.loader_label("neoforge"), "NeoForge")
+        self.assertEqual(nd.loader_label("forge"), "Forge")
+        self.assertEqual(nd.loader_label("all"), "Fabric & NeoForge & Forge")
+        self.assertEqual(nd.loader_label("fabric,neoforge"), "Fabric & NeoForge")
+        self.assertEqual(nd.loader_label("fabric,neoforge,forge"), "Fabric & NeoForge & Forge")
+
+    def test_case_insensitive(self):
+        self.assertEqual(nd.loader_label("FORGE"), "Forge")
+        self.assertEqual(nd.loader_label("ALL"), "Fabric & NeoForge & Forge")
+
+    def test_unknown_label_falls_back_to_raw_value(self):
+        self.assertEqual(nd.loader_label("quilt"), "quilt")
+
+    def test_empty_falls_back_to_unknown(self):
+        self.assertEqual(nd.loader_label(""), nd.UNKNOWN)
+
+
 if __name__ == "__main__":
     unittest.main()

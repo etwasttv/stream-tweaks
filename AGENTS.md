@@ -119,8 +119,8 @@
   - Java バージョンは `gradle.properties` の `java_version` が単一の真実で、`.github/actions/setup-build`
     （composite action）が読み取って `actions/setup-java` を実行します。matrix ビルドはありません。
 - リリースは `.github/workflows/release.yml` の手動実行（`workflow_dispatch`）で行います。
-  - 入力は `channel`（`alpha` / `beta` / `release`）と `loaders`（`both` / `fabric` / `neoforge`）です。
-    `channel=release` では `loaders=both` のみ指定できます。
+  - 入力は `channel`（`alpha` / `beta` / `release`）と `loaders`（`all` / `fabric` / `neoforge` / `forge`）です。
+    `channel=release` では `loaders=all` のみ指定できます。
   - `mod_version` と対象 Minecraft バージョンブランチを検証し、**ビルド成功後に** annotated tag を push して
     から Modrinth と GitHub Releases へ公開し、最後に Discord へ通知します。
   - changelog は `scripts/changelog_tool.py` を使い、`--loaders` でローダー別ノートを生成します。

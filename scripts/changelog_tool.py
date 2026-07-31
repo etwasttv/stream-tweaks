@@ -7,7 +7,7 @@
 - release: move Unreleased content into a versioned section and emit the notes.
 
 Bullets may carry a loader tag (``- [fabric] ...`` / ``- [neoforge] ...`` /
-``- [fabric,neoforge] ...``); untagged bullets are common to every loader.
+``- [forge] ...`` / ``- [fabric,neoforge,forge] ...``); untagged bullets are common to every loader.
 ``--loaders`` narrows the *emitted notes* to one loader's bullets plus the common
 ones. CHANGELOG.md itself is always written back unfiltered, tags included.
 """
@@ -35,7 +35,7 @@ SUBSECTION_HEADER_RE = re.compile(
 UNRELEASED_BODY_TEMPLATE = "\n\n### Added\n\n### Changed\n\n### Fixed\n"
 
 #: CHANGELOG の箇条書き先頭に付けられるローダータグとして認識する名前。
-KNOWN_LOADERS: frozenset[str] = frozenset({"fabric", "neoforge"})
+KNOWN_LOADERS: frozenset[str] = frozenset({"fabric", "neoforge", "forge"})
 
 #: '- [fabric] ...' のようなローダータグ付き箇条書きにマッチする。
 #: '] ' の直後が '(' の場合は Markdown のリンク記法 '- [text](url)' なのでマッチさせない。
@@ -319,8 +319,8 @@ def main() -> None:
     parser.add_argument(
         "--loaders",
         help=(
-            "対象ローダーを絞り込む ('fabric' / 'neoforge' / 'fabric,neoforge' / 'all'、省略時 = all)。"
-            "出力するリリースノートにのみ適用され、CHANGELOG.md への書き戻し内容は常に無加工"
+            "対象ローダーを絞り込む ('fabric' / 'neoforge' / 'forge' / 'fabric,neoforge,forge' / 'all'、"
+            "省略時 = all)。出力するリリースノートにのみ適用され、CHANGELOG.md への書き戻し内容は常に無加工"
         ),
     )
     args = parser.parse_args()
