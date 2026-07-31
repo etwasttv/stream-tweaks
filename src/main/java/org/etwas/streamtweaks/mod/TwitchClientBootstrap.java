@@ -13,6 +13,8 @@ import org.etwas.streamtweaks.presentation.chat.MinecraftChatRows;
 import org.etwas.streamtweaks.presentation.chat.twitch.EventSubNotificationRouter;
 import org.etwas.streamtweaks.presentation.chat.twitch.TwitchChatMessageDeletePresenter;
 import org.etwas.streamtweaks.presentation.chat.twitch.TwitchChatMessagePresenter;
+import org.etwas.streamtweaks.presentation.font.BadgeDownloader;
+import org.etwas.streamtweaks.presentation.font.BadgePuaMapping;
 import org.etwas.streamtweaks.presentation.font.EmoteAnimationTicker;
 import org.etwas.streamtweaks.presentation.font.EmoteDownloader;
 import org.etwas.streamtweaks.presentation.font.EmoteFontRegistry;
@@ -21,6 +23,8 @@ import org.etwas.streamtweaks.twitch.auth.AuthenticationOrchestrator;
 import org.etwas.streamtweaks.twitch.auth.infra.FileTwitchCredentialRepository;
 import org.etwas.streamtweaks.twitch.auth.infra.LocalCallbackServer;
 import org.etwas.streamtweaks.twitch.auth.infra.TokenValidateViaApi;
+import org.etwas.streamtweaks.twitch.badge.BadgeCatalogRepository;
+import org.etwas.streamtweaks.twitch.badge.infra.TwitchChatBadgeApiImpl;
 import org.etwas.streamtweaks.twitch.core.TwitchApiClient;
 import org.etwas.streamtweaks.twitch.core.infra.TwitchApiClientImpl;
 import org.etwas.streamtweaks.twitch.subscription.EventSubOrchestrator;
@@ -59,6 +63,10 @@ public final class TwitchClientBootstrap {
             EmoteFontRegistry.invalidateGlyphCache();
         });
 
+        var badgesCacheDir = platform.configDir().resolve("stream-tweaks/badges");
+        var badgeDownloader = new BadgeDownloader(badgesCacheDir);
+        var badgePuaMapping = new BadgePuaMapping();
+
         var callbackServer = new LocalCallbackServer();
         var credentialRepository = new FileTwitchCredentialRepository(
                 platform.configDir().resolve("stream-tweaks").resolve("twitch-credentials.json"));
@@ -68,6 +76,8 @@ public final class TwitchClientBootstrap {
         var eventSubWebSocketClient = new EventSubWebSocketClientImpl();
         var eventSubApi = new TwitchEventSubApiImpl(credentialRepository);
         TwitchApiClient apiClient = new TwitchApiClientImpl(credentialRepository);
+        var chatBadgeApi = new TwitchChatBadgeApiImpl(credentialRepository);
+        var badgeCatalogRepository = new BadgeCatalogRepository(chatBadgeApi);
 
         // Gsonはスレッドセーフかつ不変なので、チャット周りの各コンポーネントで共有する。
         var gson = new Gson();
@@ -75,8 +85,14 @@ public final class TwitchClientBootstrap {
         var displayedIndex = new DisplayedChatMessageIndex();
         var chatRowRemover = new ChatRowRemover(clientExecutor, MinecraftChatRows::remove);
         var integratedChatMessagePresenter = new IntegratedChatMessagePresenter(displayedIndex, chatRowRemover);
-        var chatMessagePresenter =
-                new TwitchChatMessagePresenter(puaMapping, emoteDownloader, gson, integratedChatMessagePresenter);
+        var chatMessagePresenter = new TwitchChatMessagePresenter(
+                puaMapping,
+                emoteDownloader,
+                badgePuaMapping,
+                badgeDownloader,
+                badgeCatalogRepository,
+                gson,
+                integratedChatMessagePresenter);
         var chatMessageDeletePresenter =
                 new TwitchChatMessageDeletePresenter(gson, integratedChatMessagePresenter, clientExecutor);
         var notificationRouter = new EventSubNotificationRouter(
@@ -96,8 +112,8 @@ public final class TwitchClientBootstrap {
             chatRowRemover.clear();
         });
 
-        var applicationService =
-                new TwitchApplicationService(authenticationOrchestrator, eventSubOrchestrator, apiClient);
+        var applicationService = new TwitchApplicationService(
+                authenticationOrchestrator, eventSubOrchestrator, apiClient, badgeCatalogRepository);
         commandRegistrar.register(applicationService, clientExecutor);
 
         return applicationService;

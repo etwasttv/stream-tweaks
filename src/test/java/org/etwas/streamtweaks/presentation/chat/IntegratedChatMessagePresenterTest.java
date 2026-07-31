@@ -66,6 +66,47 @@ class IntegratedChatMessagePresenterTest {
     }
 
     @Test
+    void composeWithoutBadgesProducesSameStructureAsBefore() {
+        NormalizedChatMessage withoutBadges = message("abc-123", "channel-1");
+        NormalizedChatMessage explicitEmptyBadges = new NormalizedChatMessage(
+                PlatformId.TWITCH,
+                "abc-123",
+                "channel-1",
+                "author-1",
+                Component.literal("Author"),
+                Component.literal("hello"),
+                List.of());
+
+        assertEquals(presenter.compose(withoutBadges), presenter.compose(explicitEmptyBadges));
+    }
+
+    @Test
+    void composeIncludesBadgesBeforeAuthorDisplayInOrder() {
+        Component badge1 = Component.literal("");
+        Component badge2 = Component.literal("");
+        Component authorDisplay = Component.literal("SomeUser");
+        Component content = Component.literal("hi there");
+        NormalizedChatMessage msg = new NormalizedChatMessage(
+                PlatformId.TWITCH,
+                "abc-123",
+                "channel-1",
+                "author-1",
+                authorDisplay,
+                content,
+                List.of(badge1, badge2));
+
+        Component composed = presenter.compose(msg);
+
+        List<Component> siblings = composed.getSiblings();
+        int badge1Index = siblings.indexOf(badge1);
+        int badge2Index = siblings.indexOf(badge2);
+        int authorIndex = siblings.indexOf(authorDisplay);
+        assertTrue(badge1Index >= 0 && badge2Index >= 0 && authorIndex >= 0, "バッジ・投稿者名が全て含まれること");
+        assertTrue(badge1Index < badge2Index, "バッジは配列の順序どおりに並ぶこと");
+        assertTrue(badge2Index < authorIndex, "バッジは投稿者名より前に表示されること");
+    }
+
+    @Test
     void trackForDeletionRegistersTheDisplayedMessageUnderItsKey() {
         Component composed = Component.literal("displayed");
 
