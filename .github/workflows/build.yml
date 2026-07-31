@@ -98,6 +98,12 @@ jobs:
       - name: Run changelog tool tests
         run: python3 -m unittest discover scripts/tests
 
+      - name: Check release_lib syntax
+        run: bash -n scripts/release_lib.sh scripts/tests/test_release_lib.sh
+
+      - name: Run release_lib tests
+        run: bash scripts/tests/test_release_lib.sh
+
       - name: Check Discord notification payload
         run: >
           python3 scripts/notify_discord.py

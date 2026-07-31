@@ -101,9 +101,10 @@ jobs:
             fi
           done
 
-          escape_regex() {
-            printf '%s' "$1" | sed -e 's/[.[\*^$()+?{|]/\\&/g'
-          }
+          # compute ステップの共通ロジックは scripts/release_lib.sh に抽出されている
+          # (escape_regex / prev_tag_for_loader / older_tag / oldest_tag / validate_tag_ref)。
+          # ロジック変更時は scripts/tests/test_release_lib.sh も更新すること。
+          source scripts/release_lib.sh
 
           # --- gradle.properties からバージョンを取得し、形式を厳密に検証する ---
           MOD_VERSION="$(sed -nE 's/^[[:space:]]*mod_version[[:space:]]*=[[:space:]]*([^[:space:]#]+).*$/\1/p' gradle.properties | head -n1)"
@@ -131,46 +132,6 @@ jobs:
 
           MOD_VERSION_RE="$(escape_regex "$MOD_VERSION")"
           MC_VERSION_RE="$(escape_regex "$MC_VERSION")"
-
-          # --- ローダー別に「そのローダーを公開した直近の到達可能タグ」を探す ---
-          # annotated tag のメッセージ2行目 'Loaders: fabric,neoforge,forge' を厳格な正規表現で読む。
-          # マッチしないタグ（既存の lightweight タグなど）は「不明」= 全ローダー公開済みとみなす。
-          prev_tag_for_loader() {
-            local target="$1" tag loader_line
-            while IFS= read -r tag; do
-              loader_line="$(git tag -l --format='%(contents)' "$tag" \
-                | sed -nE 's/^Loaders: ((fabric|neoforge|forge)(,(fabric|neoforge|forge))*)$/\1/p' | head -n1)"
-              if [[ -z "$loader_line" || ",${loader_line}," == *",${target},"* ]]; then
-                printf '%s' "$tag"
-                return
-              fi
-            done < <(git tag --merged HEAD --sort=-creatordate --list "v*+mc${MC_VERSION}")
-          }
-
-          # 2つのタグのうち作成日時が古い方を返す（どちらかが空なら空 = Unreleased 全文）
-          older_tag() {
-            if [[ -z "$1" || -z "$2" ]]; then
-              return
-            fi
-            if [[ "$1" == "$2" ]]; then
-              printf '%s' "$1"
-              return
-            fi
-            git tag --sort=creatordate --list "$1" "$2" | head -n1
-          }
-
-          # 3つのタグのうち最も古いものを返す（older_tag を2回畳み込んで求める。
-          # どれか1つでも空なら older_tag の性質上そのまま空が伝播する）
-          oldest_tag() {
-            older_tag "$(older_tag "$1" "$2")" "$3"
-          }
-
-          validate_tag_ref() {
-            if [[ -n "$1" && ! "$1" =~ ^v[0-9A-Za-z.+_,-]+$ ]]; then
-              echo "$2 として不正なタグ名を検出しました: '$1'"
-              exit 1
-            fi
-          }
 
           PREV_TAG_FABRIC=""
           PREV_TAG_NEOFORGE=""

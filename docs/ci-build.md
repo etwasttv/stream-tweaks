@@ -18,7 +18,7 @@ Fabric / NeoForge / Forge のマルチローダー構成に合わせてジョブ
 | `changes` | 常時 | `dorny/paths-filter` で fabric / neoforge / forge に影響する変更を検知する |
 | `format` | 常時 | `./gradlew spotlessCheck --stacktrace` |
 | `test` (Test (shared)) | 常時 | `./gradlew :fabric:test --stacktrace` |
-| `script-tests` (Release Script Tests) | 常時 | `python3 -m py_compile scripts/changelog_tool.py scripts/notify_discord.py` / `python3 -m unittest discover scripts/tests` |
+| `script-tests` (Release Script Tests) | 常時 | `python3 -m py_compile scripts/changelog_tool.py scripts/notify_discord.py` / `python3 -m unittest discover scripts/tests` / `bash -n scripts/release_lib.sh scripts/tests/test_release_lib.sh` / `bash scripts/tests/test_release_lib.sh` |
 | `build-fabric` | `changes.outputs.fabric == 'true'` | `./gradlew :fabric:build -x test --stacktrace` |
 | `build-neoforge` | `changes.outputs.neoforge == 'true'` | `./gradlew :neoforge:build --stacktrace` |
 | `build-forge` | `changes.outputs.forge == 'true'` | `./gradlew :forge:build --stacktrace` |
@@ -117,6 +117,8 @@ Java を上げるときは `gradle.properties` の 1 行を変えるだけで、
 ./gradlew :fabric:test
 python3 -m py_compile scripts/changelog_tool.py scripts/notify_discord.py
 python3 -m unittest discover scripts/tests
+bash -n scripts/release_lib.sh scripts/tests/test_release_lib.sh
+bash scripts/tests/test_release_lib.sh
 ./gradlew :fabric:build -x test
 ./gradlew :neoforge:build
 ./gradlew :forge:build
