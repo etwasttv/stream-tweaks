@@ -1,49 +1,88 @@
 package org.etwas.streamtweaks.mod;
 
-import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ScrollableLayout;
+import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.layouts.HeaderAndFooterLayout;
+import net.minecraft.client.gui.layouts.LayoutElement;
+import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 import org.etwas.streamtweaks.application.TwitchApplicationService;
 import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
 import org.etwas.streamtweaks.twitch.core.Login;
 
+/**
+ * Stream Tweaksの設定画面。
+ *
+ * <p>画面内のコンテンツ（"Twitch Connection Status:" から "Connected Channels:" のチャンネル一覧まで）は
+ * すべて {@link ScrollableLayout}（{@code net.minecraft.client.gui.components}
+ * パッケージ、Minecraft 1.20.5以降で導入されたバニラ標準API）でラップした1つのスクロール可能な
+ * Paneにまとめている。"Back" ボタンだけは {@link HeaderAndFooterLayout} のフッター領域に置き、
+ * スクロール対象外の画面下部に固定表示する。
+ *
+ * <p>以前は「Connected Channelsのチャンネル一覧部分だけ」を {@code ChannelListLayout}
+ * （Y座標計算・スクロールオフセット・可視行数を手計算する純粋ロジッククラス）と、
+ * {@code mouseScrolled}/{@code removeWidget}/{@code addRenderableWidget} を組み合わせた
+ * 独自実装でスクロール対応させていた。しかしこの手法は画面全体には広げにくく、また
+ * {@code enableScissor}/{@code disableScissor} を独自に呼ぶ実装だったため、表示領域の高さが
+ * 0になった瞬間にクリップ矩形が空になりテキストが完全に消えるバグを一度踏んでいる
+ * （{@code GuiGraphicsExtractor.ScissorStack.push()} の交差判定が `top < bottom`
+ * という厳密不等号のため）。
+ *
+ * <p>{@link ScrollableLayout} はバニラの {@code ExperimentsScreen} / {@code RestrictionsScreen}
+ * 等で実際に使われているMojang自身のスクロールコンポーネントであり、スクロール量に応じた
+ * scissorクリッピング・スクロールバー描画・マウスホイール/ドラッグ操作・キーボードフォーカス時の
+ * 自動スクロールを内部で完結して処理する。{@code ScrollableLayout.Container}
+ * （非公開の内部クラス）が唯一 {@code Screen} に addRenderableWidget されるウィジェットとなり、
+ * {@code EditBox}/{@code Button}/{@code CycleButton} 等は全てその子ウィジェットとして
+ * {@code ContainerEventHandler} 経由でイベントを受け取るため、画面全体をスクロールしても
+ * 個々のウィジェット（特にEditBoxのフォーカス）が壊れることはない。
+ * これにより、以前 {@code ChannelListLayout} が担っていた「表示領域の高さ・可視行数・
+ * スクロールオフセットの手計算」はすべて不要になった（{@code ChannelListLayout}
+ * および対応するテストは本変更で削除した）。
+ */
 public class StreamTweaksConfigScreen extends Screen {
 
-    private static final int TEXT_COLOR = 0xFFFFFFFF;
-    private static final int LABEL_COLOR = 0xFFAAAAAA;
+    private static final int TEXT_COLOR = 0xFFFFFF;
+    private static final int LABEL_COLOR = 0xAAAAAA;
+    private static final int AUTH_OK_COLOR = 0x55FF55;
+    private static final int AUTH_FAIL_COLOR = 0xFF5555;
+    private static final int NO_CHANNELS_COLOR = 0x888888;
     private static final int LINE_HEIGHT = 12;
 
-    private static final int LEFT_OFFSET = 100;
-    // BUTTON_HEIGHT, Y_CHANNEL_LIST_START, CHANNEL_LIST_BOTTOM_MARGIN, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM は
-    // ChannelListLayoutTest（同一パッケージのユニットテスト）から実際のレイアウト定数として参照するため、
-    // あえて private にせずパッケージプライベートにしている。
     static final int BUTTON_HEIGHT = 20;
-    private static final int Y_AUTH_LABEL = 48;
-    private static final int Y_AUTH_STATUS = 62;
-    private static final int Y_CONNECT_LABEL = 82;
-    private static final int Y_CONNECT_FIELD = 96;
-    private static final int Y_CONNECT_OWN_FIELD = 116;
-    private static final int Y_DISPLAY_SETTINGS_LABEL = 148;
-    private static final int Y_SHOW_BADGES_LABEL = 162;
+
+    /** ラベル＋ボタンの2カラム行で、ラベル側に確保する固定幅(px)。ボタンの開始X座標を行間で揃えるために使う。 */
+    private static final int LABEL_COLUMN_WIDTH = 170;
+
+    private static final int ROW_SPACING = 8;
+    private static final int BODY_SPACING = 6;
+
+    private static final int LOGIN_BUTTON_WIDTH = 60;
+    private static final int EDIT_BOX_WIDTH = 150;
+    private static final int CONNECT_BUTTON_WIDTH = 60;
+    private static final int CONNECT_OWN_BUTTON_WIDTH = 230;
     private static final int SHOW_BADGES_BUTTON_WIDTH = 70;
-    private static final int Y_CHANNEL_LABEL = 194;
-    static final int Y_CHANNEL_LIST_START = 208;
-    /** Backボタン（画面下部）とスクロールリスト表示領域の間に確保する余白(px)。 */
-    static final int CHANNEL_LIST_BOTTOM_MARGIN = 8;
-    /** Connected Channelsリストの表示領域の左右幅（Disconnectボタンを含む）。 */
-    private static final int CHANNEL_LIST_AREA_WIDTH = 240;
-    /** Backボタンを画面下端からどれだけ上に配置するか(px)。 */
-    static final int BACK_BUTTON_Y_OFFSET_FROM_BOTTOM = 30;
+    private static final int DISCONNECT_BUTTON_WIDTH = 80;
+    private static final int BACK_BUTTON_WIDTH = 100;
+
+    /** スクロール可能領域の最小幅(px)。内容がこれより狭い場合でも常にこの幅を確保する。 */
+    private static final int CONTENT_MIN_WIDTH = 280;
+
+    /**
+     * スクロール可能領域の最大高さの下限(px)。{@link ScrollableLayout#setMaxHeight}は内部で
+     * {@code Math.clamp(height, minHeight, maxHeight)} を呼ぶため、maxHeightが0や負の値になると
+     * （minHeightのデフォルト0を下回り）{@code IllegalArgumentException}で画面ごとクラッシュする。
+     * 極端に低い画面高さ（ヘッダー+フッターだけで画面が埋まってしまうケース）でもクラッシュしない
+     * よう、常にこの値以上を下限として確保する。
+     */
+    private static final int MIN_SCROLL_AREA_HEIGHT = BUTTON_HEIGHT * 2;
 
     private final Screen parent;
 
@@ -56,15 +95,15 @@ public class StreamTweaksConfigScreen extends Screen {
     private Button connectBtn;
     private List<Login> subscribedLogins = List.of();
 
-    /** Connected Channelsリストの縦スクロール位置（先頭から何行分スクロールしたか）。 */
-    private int channelListScrollOffset = 0;
+    /** 画面全体のヘッダー(タイトル)／コンテンツ／フッター(Backボタン)を管理するレイアウト。 */
+    private HeaderAndFooterLayout layout;
 
     /**
-     * 現在追加済みのDisconnectボタン一覧。スクロール操作時にこのリストのウィジェットだけを
-     * removeWidget/addRenderableWidgetで差し替えることで、channelFieldなど他のウィジェットの
-     * フォーカスを保ったままリスト表示を更新できるようにする（画面全体のrebuildWidgetsを避ける）。
+     * "Twitch Connection Status:" から "Connected Channels:" のチャンネル一覧までをまとめてラップする
+     * スクロール可能領域。Backボタンはこの外（{@link #layout}のフッター）に置かれるため、
+     * スクロールの影響を受けない。
      */
-    private final List<Button> channelListButtonWidgets = new ArrayList<>();
+    private ScrollableLayout scrollArea;
 
     public StreamTweaksConfigScreen(Screen parent) {
         super(Component.literal("Stream Tweaks"));
@@ -73,9 +112,6 @@ public class StreamTweaksConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        int centerX = this.width / 2;
-        int leftX = centerX - LEFT_OFFSET;
-
         TwitchApplicationService service = TwitchApplicationServices.get();
         // 認証情報ファイルの読み込みは init() あたり1回に抑える。読み取った値を使い回し、
         // 自チャンネル接続済みかどうかはメモリ上の subscribedLogins（ファイルI/Oなし）で判定する。
@@ -84,60 +120,80 @@ public class StreamTweaksConfigScreen extends Screen {
 
         subscribedLogins = service != null ? List.copyOf(service.getSubscribedLogins()) : List.of();
 
+        this.layout = new HeaderAndFooterLayout(this);
+        this.layout.addTitleHeader(this.title, this.font);
+
+        LinearLayout body = LinearLayout.vertical().spacing(BODY_SPACING);
+        body.defaultCellSetting().alignHorizontallyLeft();
+
+        // --- Twitch Connection Status ---
+        body.addChild(sectionLabel("Twitch Connection Status:"));
+
+        Component authText = authenticated
+                ? Component.literal("  Authenticated: " + authenticatedLogin).withColor(AUTH_OK_COLOR)
+                : Component.literal("  Not authenticated").withColor(AUTH_FAIL_COLOR);
+        StringWidget authStatusWidget = new StringWidget(LABEL_COLUMN_WIDTH, LINE_HEIGHT, authText, this.font);
+
+        Button authButton;
         if (authenticated) {
-            int logoutX = leftX + 160;
-            Button logoutBtn = Button.builder(Component.literal("Logout"), button -> doLogout(service))
-                    .bounds(logoutX, Y_AUTH_STATUS - 4, 60, BUTTON_HEIGHT)
+            authButton = Button.builder(Component.literal("Logout"), button -> doLogout(service))
+                    .width(LOGIN_BUTTON_WIDTH)
                     .build();
-            logoutBtn.active = !busy;
-            this.addRenderableWidget(logoutBtn);
+            authButton.active = !busy;
         } else {
-            int loginX = leftX + 160;
-            Button loginBtn = Button.builder(Component.literal("Login"), button -> doLogin(service))
-                    .bounds(loginX, Y_AUTH_STATUS - 4, 60, BUTTON_HEIGHT)
+            authButton = Button.builder(Component.literal("Login"), button -> doLogin(service))
+                    .width(LOGIN_BUTTON_WIDTH)
                     .build();
-            loginBtn.active = !busy && service != null;
-            this.addRenderableWidget(loginBtn);
+            authButton.active = !busy && service != null;
         }
+        body.addChild(row(authStatusWidget, authButton));
+
+        // --- Connect to Channel ---
+        body.addChild(sectionLabel("Connect to Channel:"));
 
         channelField =
-                new EditBox(this.font, leftX, Y_CONNECT_FIELD, 150, BUTTON_HEIGHT, Component.literal("Channel name"));
+                new EditBox(this.font, 0, 0, EDIT_BOX_WIDTH, BUTTON_HEIGHT, Component.literal("Channel name"));
         channelField.setValue(channelInputText);
         channelField.setEditable(authenticated && !busy);
         channelField.setResponder(text -> {
             channelInputText = text;
             updateConnectButton();
         });
-        this.addRenderableWidget(channelField);
 
-        int connectX = leftX + 154;
         connectBtn = Button.builder(Component.literal("Connect"), button -> doConnect(service))
-                .bounds(connectX, Y_CONNECT_FIELD, 60, BUTTON_HEIGHT)
+                .width(CONNECT_BUTTON_WIDTH)
                 .build();
         connectBtn.active = authenticated && !busy && isValidChannelName(channelInputText);
-        this.addRenderableWidget(connectBtn);
+        body.addChild(row(channelField, connectBtn));
 
         boolean connectedToOwnChannel = authenticatedLogin != null
                 && subscribedLogins.stream().anyMatch(login -> login.value().equalsIgnoreCase(authenticatedLogin));
         Button connectOwnBtn = Button.builder(
                         Component.literal("Connect to My Channel"), button -> doConnectOwnChannel(service))
-                .bounds(leftX, Y_CONNECT_OWN_FIELD, 214, BUTTON_HEIGHT)
+                .width(CONNECT_OWN_BUTTON_WIDTH)
                 .build();
         connectOwnBtn.active = authenticated && !busy && !connectedToOwnChannel;
-        this.addRenderableWidget(connectOwnBtn);
+        body.addChild(connectOwnBtn);
 
+        // --- Display Settings ---
         StreamTweaksSettingsStore settingsStore = StreamTweaksSettingsServices.get();
         if (settingsStore != null) {
-            int showBadgesButtonX = leftX + 160;
-            // "Show Twitch Badges" というラベルは extractRenderState() 側で他のラベルと同様に
-            // context.text(...) で描画し、ボタンには displayOnlyValue() で値（Enabled/Disabled）のみを
-            // 表示させる。name には narration（読み上げ）用にラベルを渡す。
+            body.addChild(sectionLabel("Display Settings:"));
+
+            StringWidget showBadgesLabel = new StringWidget(
+                    LABEL_COLUMN_WIDTH,
+                    LINE_HEIGHT,
+                    Component.literal("Show Twitch Badges").withColor(TEXT_COLOR),
+                    this.font);
+            // "Show Twitch Badges" というラベルはStringWidgetとして描画し、ボタンには
+            // displayOnlyValue() で値（Enabled/Disabled）のみを表示させる。name には
+            // narration（読み上げ）用にラベルを渡す。
             CycleButton<Boolean> showBadgesBtn = CycleButton.booleanBuilder(
                             Component.literal("Enabled"), Component.literal("Disabled"), settingsStore.showBadges())
                     .displayOnlyValue()
                     .create(
-                            showBadgesButtonX,
-                            Y_SHOW_BADGES_LABEL - 4,
+                            0,
+                            0,
                             SHOW_BADGES_BUTTON_WIDTH,
                             BUTTON_HEIGHT,
                             Component.literal("Show Twitch Badges"),
@@ -145,122 +201,95 @@ public class StreamTweaksConfigScreen extends Screen {
             // 他のウィジェットと異なり意図的に .active = !busy を設定していない。
             // このトグルはネットワークI/Oを伴わないローカル設定の変更のみのため、
             // ログイン/ログアウト/接続処理中（busy中）でも操作可能にしてよいという設計判断による。
-            this.addRenderableWidget(showBadgesBtn);
+            body.addChild(row(showBadgesLabel, showBadgesBtn));
         }
 
-        // Disconnectボタンの生成・配置はrefreshChannelListButtons()に集約する。
-        // mouseScrolled()からも同じメソッドを呼び出し、他のウィジェットのフォーカスに影響を与えず
-        // このボタン群だけを差し替えられるようにするため。
-        // （このinit()自体がrebuildWidgets経由で呼ばれた場合はclearWidgets()で既存ウィジェットは
-        // 消えているが、channelListButtonWidgetsフィールドは自前管理のため、
-        // refreshChannelListButtons()内でこのリストを都度クリアしてから作り直す。）
-        refreshChannelListButtons();
+        // --- Connected Channels ---
+        body.addChild(sectionLabel("Connected Channels:"));
+        if (subscribedLogins.isEmpty()) {
+            body.addChild(new StringWidget(
+                    Component.literal("  No channels connected").withColor(NO_CHANNELS_COLOR), this.font));
+        } else {
+            for (Login login : subscribedLogins) {
+                StringWidget channelLabel = new StringWidget(
+                        LABEL_COLUMN_WIDTH,
+                        LINE_HEIGHT,
+                        Component.literal("  - " + login.value()).withColor(TEXT_COLOR),
+                        this.font);
+                Button disconnectBtn = Button.builder(
+                                Component.literal("Disconnect"), button -> doDisconnect(service, login))
+                        .width(DISCONNECT_BUTTON_WIDTH)
+                        .build();
+                disconnectBtn.active = !busy;
+                body.addChild(row(channelLabel, disconnectBtn));
+            }
+        }
 
-        int backWidth = 100;
-        int backX = (this.width - backWidth) / 2;
-        int backY = this.height - BACK_BUTTON_Y_OFFSET_FROM_BOTTOM;
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
-                .bounds(backX, backY, backWidth, BUTTON_HEIGHT)
+        this.scrollArea = new ScrollableLayout(this.minecraft, body, computeScrollAreaMaxHeight());
+        this.scrollArea.setMinWidth(CONTENT_MIN_WIDTH);
+        this.layout.addToContents(this.scrollArea);
+
+        this.layout.addToFooter(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
+                .width(BACK_BUTTON_WIDTH)
                 .build());
+
+        this.layout.visitWidgets(this::addRenderableWidget);
+        this.repositionElements();
+    }
+
+    /**
+     * Backボタン(フッター)を除いたコンテンツ領域に確保できる最大高さ。
+     *
+     * <p>{@link ScrollableLayout#setMaxHeight}は内部で{@code Math.clamp(height, 0, maxHeight)}を
+     * 呼ぶため、画面が極端に低くヘッダー+フッターだけで埋まってしまう場合でも{@link
+     * #MIN_SCROLL_AREA_HEIGHT}を下限として確保し、負の値や0を渡してクラッシュすることを防ぐ。
+     */
+    private int computeScrollAreaMaxHeight() {
+        return Math.max(MIN_SCROLL_AREA_HEIGHT, this.layout.getContentHeight());
+    }
+
+    /**
+     * ラベル用ウィジェットとして、色付きの{@link StringWidget}を返す。
+     * "Twitch Connection Status:" 等、単独行で使うセクション見出しに使用する。
+     */
+    private StringWidget sectionLabel(String text) {
+        return new StringWidget(Component.literal(text).withColor(LABEL_COLOR), this.font);
+    }
+
+    /**
+     * ラベル(または入力欄)とボタンを横に並べた1行を作る。左側の幅は呼び出し側の
+     * ウィジェット自身の幅（{@link #LABEL_COLUMN_WIDTH}で固定したStringWidget、または
+     * EditBoxの固定幅）に従うため、行ごとにボタンの開始X座標が揃う。
+     */
+    private LinearLayout row(LayoutElement left, LayoutElement right) {
+        LinearLayout row = LinearLayout.horizontal().spacing(ROW_SPACING);
+        row.defaultCellSetting().alignVerticallyMiddle();
+        row.addChild(left);
+        row.addChild(right);
+        return row;
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(context, mouseX, mouseY, delta);
-
-        int centerX = this.width / 2;
-        int leftX = centerX - LEFT_OFFSET;
-
-        context.centeredText(this.font, this.title, centerX, 16, TEXT_COLOR);
-
-        context.text(this.font, Component.literal("Twitch Connection Status:"), leftX, Y_AUTH_LABEL, LABEL_COLOR);
-
-        TwitchApplicationService service = TwitchApplicationServices.get();
-        String loginName = service != null ? service.getAuthenticatedLogin() : null;
-
-        if (loginName != null) {
-            context.text(
-                    this.font, Component.literal("  Authenticated: " + loginName), leftX, Y_AUTH_STATUS, 0xFF55FF55);
-        } else {
-            context.text(this.font, Component.literal("  Not authenticated"), leftX, Y_AUTH_STATUS, 0xFFFF5555);
+    protected void repositionElements() {
+        // Screen#repositionElements()のデフォルト実装はrebuildWidgets()（clearWidgets()+init()）を
+        // 呼ぶため、ここをオーバーライドせずinit()末尾からthis.repositionElements()を呼ぶと
+        // 無限再帰になる。バニラのExperimentsScreen/RestrictionsScreenと同様、ウィジェットを
+        // 作り直さずレイアウトの再配置だけを行う版にオーバーライドする。
+        // これにより、ウィンドウリサイズ時（Screen#resize()がrepositionElements()を直接呼ぶ経路）も
+        // channelFieldなどのウィジェットが再生成されず、フォーカスが保たれる副次的な利点もある。
+        if (this.layout == null) {
+            return;
         }
-
-        context.text(this.font, Component.literal("Connect to Channel:"), leftX, Y_CONNECT_LABEL, LABEL_COLOR);
-
-        context.text(this.font, Component.literal("Display Settings:"), leftX, Y_DISPLAY_SETTINGS_LABEL, LABEL_COLOR);
-        context.text(this.font, Component.literal("Show Twitch Badges"), leftX, Y_SHOW_BADGES_LABEL, TEXT_COLOR);
-
-        context.text(this.font, Component.literal("Connected Channels:"), leftX, Y_CHANNEL_LABEL, LABEL_COLOR);
-
-        // Connected Channelsのリスト部分（No channels connected / 各チャンネル行）は
-        // Backボタンと重ならない固定領域(channelListAreaTop〜channelListAreaBottom)に収める。
-        //
-        // 以前は context.enableScissor(...)/disableScissor() でこの領域をクリップしていたが、
-        // GuiGraphicsExtractor.ScissorStack.push() は「新しい矩形と現在の矩形の交差」を計算する際、
-        // ScreenRectangle.intersection() の判定が `top < bottom` という厳密不等号であるため、
-        // channelListAreaBottom() == channelListAreaTop()（＝表示領域の高さが0）になった瞬間に
-        // 交差がnull扱いとなり ScreenRectangle.empty()（0,0,0,0）が積まれ、以降このスコープで
-        // 描画するテキストが完全に不可視になってしまうバグがあった。
-        // このケースは決して極端な最小ウィンドウでのみ起きるわけではなく、Minecraftのデフォルト
-        // 起動解像度（854x480、GUI拡大率Auto）でGUI論理座標の高さがちょうど240pxになる場合に
-        // 現在の定数（Y_CHANNEL_LIST_START, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM,
-        // CHANNEL_LIST_BOTTOM_MARGIN）の組み合わせで実際に発生し、物理ウィンドウサイズを見た目で
-        // 判断すると「十分広い」と感じても再現し得る。
-        //
-        // 行の表示可否は既に visibleEntryYPositions()（channelListVisibleLineCount()内部で
-        // 使われる同じfloor除算ロジック）が表示領域に収まる分だけを返す設計になっており、
-        // scissorはあくまで「保険」的な位置づけだった。空リスト時のテキストにも同じ
-        // channelListVisibleLineCount() > 0 の判定を適用することで、
-        // - 表示領域に1行分でも収まるなら（ほとんどの実用的な画面サイズ）scissorに頼らず必ず表示し、
-        // - 収まらないほど極端に低い画面では、Backボタンと重ならないよう描画自体を省略する
-        // という、rowsと空リスト表示で一貫した挙動にする。
-        if (channelListVisibleLineCount() > 0) {
-            if (subscribedLogins.isEmpty()) {
-                // チャンネル行と同じ channelListAreaTop() を基準にすることで、
-                // 空リスト時のテキストと実際のチャンネル行のY座標が一致するようにする。
-                context.text(
-                        this.font,
-                        Component.literal("  No channels connected"),
-                        leftX,
-                        channelListAreaTop(),
-                        0xFF888888);
-            } else {
-                for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
-                    context.text(
-                            this.font,
-                            Component.literal("  - " + entry.getKey().value()),
-                            leftX,
-                            entry.getValue(),
-                            TEXT_COLOR);
-                }
-            }
+        if (this.scrollArea != null) {
+            this.scrollArea.arrangeElements();
+            this.scrollArea.setMaxHeight(computeScrollAreaMaxHeight());
         }
+        this.layout.arrangeElements();
     }
 
     @Override
     public void onClose() {
         this.minecraft.gui.setScreen(this.parent);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (isInsideChannelListArea(mouseX, mouseY)) {
-            int maxOffset = channelListMaxScrollOffset();
-            if (maxOffset <= 0) {
-                return false;
-            }
-            int newOffset = Mth.clamp(channelListScrollOffset - (int) Math.signum(scrollY), 0, maxOffset);
-            if (newOffset != channelListScrollOffset) {
-                channelListScrollOffset = newOffset;
-                // Disconnectボタンの位置がスクロールオフセットに応じて変わるため再配置する。
-                // reinitialize()（画面全体のrebuildWidgets）を呼ぶとchannelFieldなど他の
-                // ウィジェットも作り直されてフォーカスを失うため、Disconnectボタンだけを
-                // removeWidget/addRenderableWidgetで差し替える。
-                refreshChannelListButtons();
-            }
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     // -------------------------------------------------------------------------
@@ -424,93 +453,6 @@ public class StreamTweaksConfigScreen extends Screen {
         TwitchApplicationService service = TwitchApplicationServices.get();
         boolean authenticated = service != null && service.getAuthenticatedLogin() != null;
         connectBtn.active = authenticated && !busy && isValidChannelName(channelInputText);
-    }
-
-    /**
-     * Disconnectボタンだけを removeWidget → addRenderableWidget で差し替える。
-     *
-     * <p>スクロールのたびに {@code reinitialize()}（画面全体の rebuildWidgets）を呼ぶと、
-     * {@code channelField} など他のウィジェットも作り直されてしまい、入力中にチャンネルリストを
-     * ホイール操作するとテキストフィールドのフォーカス（キャレット等）が失われる問題があった。
-     * {@code Screen#removeWidget} はフォーカス中のウィジェット自身が削除対象のときだけ
-     * フォーカスを解除する実装のため、ここで触れるのはDisconnectボタンのみに限定し、
-     * channelField 等のフォーカス状態には一切影響を与えない。
-     */
-    private void refreshChannelListButtons() {
-        for (Button existing : channelListButtonWidgets) {
-            this.removeWidget(existing);
-        }
-        channelListButtonWidgets.clear();
-
-        TwitchApplicationService service = TwitchApplicationServices.get();
-        int centerX = this.width / 2;
-        int leftX = centerX - LEFT_OFFSET;
-        int disconnectX = leftX + 160;
-        for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
-            final Login target = entry.getKey();
-            int y = entry.getValue();
-            Button disconnectBtn = Button.builder(
-                            Component.literal("Disconnect"), button -> doDisconnect(service, target))
-                    .bounds(disconnectX, y + ChannelListLayout.BUTTON_Y_OFFSET, 80, BUTTON_HEIGHT)
-                    .build();
-            disconnectBtn.active = !busy;
-            this.addRenderableWidget(disconnectBtn);
-            channelListButtonWidgets.add(disconnectBtn);
-        }
-    }
-
-    /** Connected Channelsリスト表示領域の上端Y座標。 */
-    private int channelListAreaTop() {
-        return ChannelListLayout.areaTop(Y_CHANNEL_LIST_START);
-    }
-
-    /** Connected Channelsリスト表示領域の下端Y座標。Backボタンの上に一定のマージンを確保する。 */
-    private int channelListAreaBottom() {
-        return ChannelListLayout.areaBottom(
-                this.height, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM, CHANNEL_LIST_BOTTOM_MARGIN, channelListAreaTop());
-    }
-
-    /** 表示領域内に収まる行数（画面サイズに応じて変動）。 */
-    private int channelListVisibleLineCount() {
-        return ChannelListLayout.visibleLineCount(channelListAreaTop(), channelListAreaBottom(), BUTTON_HEIGHT);
-    }
-
-    /** 現在の購読数・表示領域から算出されるスクロールオフセットの最大値。 */
-    private int channelListMaxScrollOffset() {
-        return ChannelListLayout.maxScrollOffset(subscribedLogins.size(), channelListVisibleLineCount());
-    }
-
-    /** 画面リサイズや購読数の変化後でも channelListScrollOffset が範囲内に収まるよう補正する。 */
-    private void clampChannelListScrollOffset() {
-        channelListScrollOffset =
-                ChannelListLayout.clampScrollOffset(channelListScrollOffset, channelListMaxScrollOffset());
-    }
-
-    private List<Map.Entry<Login, Integer>> visibleChannelEntries() {
-        clampChannelListScrollOffset();
-        int start = channelListScrollOffset;
-        List<Integer> yPositions = ChannelListLayout.visibleEntryYPositions(
-                subscribedLogins.size(),
-                channelListScrollOffset,
-                channelListAreaTop(),
-                channelListVisibleLineCount(),
-                BUTTON_HEIGHT);
-        List<Map.Entry<Login, Integer>> result = new ArrayList<>();
-        for (int i = 0; i < yPositions.size(); i++) {
-            result.add(new AbstractMap.SimpleImmutableEntry<>(subscribedLogins.get(start + i), yPositions.get(i)));
-        }
-        return result;
-    }
-
-    /** マウス座標がConnected Channelsリストの表示領域内かどうか判定する。 */
-    private boolean isInsideChannelListArea(double mouseX, double mouseY) {
-        int centerX = this.width / 2;
-        int leftX = centerX - LEFT_OFFSET;
-        int areaLeft = leftX;
-        int areaRight = leftX + CHANNEL_LIST_AREA_WIDTH;
-        int areaTop = channelListAreaTop();
-        int areaBottom = channelListAreaBottom();
-        return mouseX >= areaLeft && mouseX < areaRight && mouseY >= areaTop && mouseY < areaBottom;
     }
 
     private static boolean isValidChannelName(String text) {
