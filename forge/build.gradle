@@ -54,8 +54,17 @@ minecraft {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
             args "--mixin.config=stream-tweaks.mixins.json"
+            if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+                jvmArgs '-XstartOnFirstThread'
+            }
+            // NOTE: :forge:runClient は現時点でクラッシュする既知の問題がある
+            // (CLAUDE.md の「実行とテスト」節の既知の制限事項を参照)。
+            // この mods{} 宣言自体はAPIとしては正しい使い方だが、ForgeGradle 7.0.31 の
+            // SlimeLauncher はこれを開発実行時のクラスパス結合には反映しない
+            // (MOD_CLASSES 環境変数はfmlloader-26.2-65.1.0では読まれず、代替の仕組みも
+            // 現状見当たらない)。:forge:build で生成される本番用jarには影響しない。
             mods {
-                streamTweaks {
+                stream_tweaks {
                     source sourceSets.main
                 }
             }

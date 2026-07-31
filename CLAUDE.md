@@ -44,6 +44,8 @@ gradle :fabric:genSources
 
 > クライアント専用モッドのため、サーバー実行タスク（`runServer`）は定義されていない。
 
+> **既知の制限**: `gradle :forge:runClient`（および `genEclipseRunClientForForge` から生成されるIDE実行構成）は現時点でクラッシュする。原因はこのプロジェクトのバグではなく、ForgeGradle 7.0.31 の SlimeLauncher が開発実行時にmodのsourceSet出力（`build/classes/java/main` と `build/resources/main`）を1つのMod fileとして統合する仕組みを実装していないため（`MOD_CLASSES` 環境変数はfmlloader-26.2-65.1.0では読まれず、代替の仕組みも見当たらない。[MinecraftForge/ForgeGradle#1048](https://github.com/MinecraftForge/ForgeGradle/issues/1048) 参照）。**`gradle :forge:build` で生成される本番用jarには影響しない**（jarは元々classes/resourcesが1つに束ねられているため）。
+
 ## プロジェクト構造
 
 ### プロジェクト情報
