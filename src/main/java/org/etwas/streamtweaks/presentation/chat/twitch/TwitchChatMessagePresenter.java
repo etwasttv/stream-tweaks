@@ -3,9 +3,11 @@ package org.etwas.streamtweaks.presentation.chat.twitch;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -15,10 +17,17 @@ import net.minecraft.network.chat.TextColor;
 import org.etwas.streamtweaks.platform.PlatformId;
 import org.etwas.streamtweaks.presentation.chat.IntegratedChatMessagePresenter;
 import org.etwas.streamtweaks.presentation.chat.NormalizedChatMessage;
+import org.etwas.streamtweaks.presentation.font.BadgeDownloader;
+import org.etwas.streamtweaks.presentation.font.BadgePuaMapping;
+import org.etwas.streamtweaks.presentation.font.EmoteAnimation;
 import org.etwas.streamtweaks.presentation.font.EmoteDownloader;
 import org.etwas.streamtweaks.presentation.font.EmoteFontRegistry;
 import org.etwas.streamtweaks.presentation.font.EmoteGlyph;
 import org.etwas.streamtweaks.presentation.font.PuaMapping;
+import org.etwas.streamtweaks.twitch.badge.BadgeCatalogRepository;
+import org.etwas.streamtweaks.twitch.badge.domain.BadgeKey;
+import org.etwas.streamtweaks.twitch.badge.domain.ChatBadge;
+import org.etwas.streamtweaks.twitch.core.UserId;
 import org.etwas.streamtweaks.twitch.subscription.event.ChatMessageNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,19 +43,30 @@ public class TwitchChatMessagePresenter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TwitchChatMessagePresenter.class);
     private static final String ANIMATED_FORMAT = "animated";
+    // event.badges() が異常に長い配列を送ってきた場合の防御的上限（通常は数件程度）。
+    private static final int MAX_BADGES_PER_MESSAGE = 10;
 
     private final PuaMapping puaMapping;
     private final EmoteDownloader emoteDownloader;
+    private final BadgePuaMapping badgePuaMapping;
+    private final BadgeDownloader badgeDownloader;
+    private final BadgeCatalogRepository badgeCatalogRepository;
     private final Gson gson;
     private final IntegratedChatMessagePresenter integratedPresenter;
 
     public TwitchChatMessagePresenter(
             PuaMapping puaMapping,
             EmoteDownloader emoteDownloader,
+            BadgePuaMapping badgePuaMapping,
+            BadgeDownloader badgeDownloader,
+            BadgeCatalogRepository badgeCatalogRepository,
             Gson gson,
             IntegratedChatMessagePresenter integratedPresenter) {
         this.puaMapping = puaMapping;
         this.emoteDownloader = emoteDownloader;
+        this.badgePuaMapping = badgePuaMapping;
+        this.badgeDownloader = badgeDownloader;
+        this.badgeCatalogRepository = badgeCatalogRepository;
         this.gson = gson;
         this.integratedPresenter = integratedPresenter;
     }
@@ -82,16 +102,89 @@ public class TwitchChatMessagePresenter {
                     buildContent(event.message().fragments(), event.message().text(), emoteRequests);
             MutableComponent authorDisplay =
                     Component.literal(event.chatterUserName()).withStyle(resolveUsernameStyle(event.color()));
+            UserId broadcasterId = new UserId(event.broadcasterUserId());
+            List<BadgeRequest> badgeRequests = new ArrayList<>();
+            List<Component> badges = buildBadges(broadcasterId, event.badges(), badgeRequests);
             NormalizedChatMessage message = new NormalizedChatMessage(
                     PlatformId.TWITCH,
                     sanitizeMessageId(event.messageId()),
                     event.broadcasterUserId(),
                     event.chatterUserId(),
                     authorDisplay,
-                    content);
+                    content,
+                    badges);
             integratedPresenter.present(message);
             scheduleEmoteDownloads(client, emoteRequests);
+            scheduleBadgeDownloads(client, badgeRequests);
         });
+    }
+
+    /**
+     * {@code event.badges()} を配列順に解決し、表示用Componentのリストを組み立てる。
+     * 該当するバッジ画像がまだ解決できない（バッジカタログ未取得・未知のset_id・
+     * PUAレンジ枯渇のいずれか）場合は、そのバッジだけを静かにスキップする
+     * （要件どおり「何も表示しない」がデフォルトのフォールバック）。
+     *
+     * <p>Minecraftインスタンスに依存しないため、テストから直接検証できるようパッケージプライベートにしている。
+     */
+    List<Component> buildBadges(
+            UserId broadcasterId, List<ChatMessageNotification.Badge> rawBadges, List<BadgeRequest> outRequests) {
+        if (rawBadges == null || rawBadges.isEmpty()) {
+            return List.of();
+        }
+        List<Component> result = new ArrayList<>();
+        int limit = Math.min(rawBadges.size(), MAX_BADGES_PER_MESSAGE);
+        for (int i = 0; i < limit; i++) {
+            ChatMessageNotification.Badge raw = rawBadges.get(i);
+            if (raw.setId() == null || raw.id() == null) {
+                continue;
+            }
+            BadgeKey key = new BadgeKey(raw.setId(), raw.id());
+            Optional<ChatBadge> chatBadge = badgeCatalogRepository.lookup(broadcasterId, key);
+            if (chatBadge.isEmpty()) {
+                // カタログ未取得（接続直後）・未知のset_id・廃止済みバージョンのいずれも同じ扱い。
+                // カタログ取得済みなのに見つからない場合だけ記録し、「一時的な未ロード」と
+                // 「恒久的な非対応バッジ」を運用上切り分けられるようにする。
+                if (badgeCatalogRepository.isLoaded(broadcasterId)) {
+                    LOGGER.debug("Badge not found in loaded catalog: broadcaster={}, key={}", broadcasterId, key);
+                }
+                continue;
+            }
+            Optional<Integer> codePoint = badgePuaMapping.getOrAssign(broadcasterId, key);
+            if (codePoint.isEmpty()) {
+                LOGGER.warn(
+                        "Badge PUA code point range exhausted; skipping badge broadcaster={}, key={}",
+                        broadcasterId,
+                        key);
+                continue;
+            }
+            result.add(Component.literal(new String(Character.toChars(codePoint.get()))));
+            outRequests.add(new BadgeRequest(codePoint.get(), chatBadge.get().imageUrl(), key, broadcasterId));
+        }
+        return result;
+    }
+
+    private void scheduleBadgeDownloads(Minecraft client, List<BadgeRequest> badgeRequests) {
+        for (BadgeRequest request : badgeRequests) {
+            if (EmoteFontRegistry.getCurrent().hasGlyph(request.codePoint())) {
+                // バッジは一度割り当てたコードポイントを保持し続ける設計のため、
+                // 絵文字のようなLRU再割り当て検出（isCurrentMapping相当）は不要
+                // （コードポイント自体がチャンネル+バッジキーで一意なため、他チャンネルとの
+                // 衝突はBadgePuaMapping側で防がれている）。
+                continue;
+            }
+            badgeDownloader
+                    .download(request.broadcasterId(), request.badgeKey(), request.imageUrl())
+                    .thenAccept(optImage -> optImage.ifPresent(image -> client.execute(() -> {
+                        if (EmoteFontRegistry.getCurrent().hasGlyph(request.codePoint())) {
+                            image.close();
+                            return;
+                        }
+                        EmoteFontRegistry.getCurrent()
+                                .addGlyph(request.codePoint(), new EmoteGlyph(EmoteAnimation.ofStatic(image)));
+                        EmoteFontRegistry.invalidateGlyphCache();
+                    })));
+        }
     }
 
     /**
@@ -177,4 +270,7 @@ public class TwitchChatMessagePresenter {
     }
 
     private record EmoteRequest(int codePoint, boolean animated) {}
+
+    // buildBadges からのテストで直接検証できるようパッケージプライベートにしている。
+    record BadgeRequest(int codePoint, String imageUrl, BadgeKey badgeKey, UserId broadcasterId) {}
 }

@@ -181,6 +181,67 @@ class ChatMessageNotificationTest {
     }
 
     @Test
+    void deserializesChatMessageEventWithBadges() {
+        String json =
+                """
+                {
+                  "broadcaster_user_id": "12345",
+                  "broadcaster_user_login": "broadcaster",
+                  "broadcaster_user_name": "Broadcaster",
+                  "chatter_user_id": "67890",
+                  "chatter_user_login": "chatter",
+                  "chatter_user_name": "Chatter",
+                  "message_id": "abc-123",
+                  "message": {
+                    "text": "Hello world"
+                  },
+                  "color": "#1E90FF",
+                  "badges": [
+                    {"set_id": "moderator", "id": "1", "info": ""},
+                    {"set_id": "subscriber", "id": "3", "info": "9"}
+                  ]
+                }
+                """;
+
+        ChatMessageNotification.ChatMessageEvent event =
+                gson.fromJson(json, ChatMessageNotification.ChatMessageEvent.class);
+
+        assertNotNull(event.badges());
+        assertEquals(2, event.badges().size());
+        assertEquals("moderator", event.badges().get(0).setId());
+        assertEquals("1", event.badges().get(0).id());
+        assertEquals("", event.badges().get(0).info());
+        assertEquals("subscriber", event.badges().get(1).setId());
+        assertEquals("3", event.badges().get(1).id());
+        assertEquals("9", event.badges().get(1).info());
+    }
+
+    @Test
+    void deserializesChatMessageEventWithNullBadges() {
+        String json =
+                """
+                {
+                  "broadcaster_user_id": "12345",
+                  "broadcaster_user_login": "broadcaster",
+                  "broadcaster_user_name": "Broadcaster",
+                  "chatter_user_id": "67890",
+                  "chatter_user_login": "chatter",
+                  "chatter_user_name": "Chatter",
+                  "message_id": "abc-123",
+                  "message": {
+                    "text": "Hello world"
+                  },
+                  "color": "#1E90FF"
+                }
+                """;
+
+        ChatMessageNotification.ChatMessageEvent event =
+                gson.fromJson(json, ChatMessageNotification.ChatMessageEvent.class);
+
+        assertNull(event.badges());
+    }
+
+    @Test
     void deserializesChatMessageEventWithEmptyColor() {
         String json =
                 """
