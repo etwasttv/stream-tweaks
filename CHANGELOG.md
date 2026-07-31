@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Twitchチャットのユーザーが装着しているバッジ（モデレーター/VIP/ブロードキャスター/サブスクライバー等）を、グローバルバッジ・チャンネル固有バッジ（サブスクライバーバッジ等のカスタム画像を含む）ともにMinecraftのチャット欄へ画像アイコンとして表示するよう対応
 
 ### Changed
 

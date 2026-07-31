@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationOrchestrator;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationResult;
+import org.etwas.streamtweaks.twitch.badge.BadgeCatalogRepository;
 import org.etwas.streamtweaks.twitch.core.Login;
 import org.etwas.streamtweaks.twitch.core.TwitchApiClient;
 import org.etwas.streamtweaks.twitch.core.UserId;
@@ -39,11 +40,14 @@ class TwitchApplicationServiceTest {
     @Mock
     TwitchApiClient apiClient;
 
+    @Mock
+    BadgeCatalogRepository badgeCatalogRepository;
+
     TwitchApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new TwitchApplicationService(authService, subscriptionService, apiClient);
+        service = new TwitchApplicationService(authService, subscriptionService, apiClient, badgeCatalogRepository);
     }
 
     // --- login ---
@@ -102,6 +106,29 @@ class TwitchApplicationServiceTest {
 
         verify(apiClient).getUserId(new Login("streamer"));
         verify(subscriptionService).subscribe(new UserId("broadcaster1"));
+    }
+
+    @Test
+    void connect_triggersBestEffortBadgeCatalogLoad() {
+        when(apiClient.getUserId(new Login("streamer")))
+                .thenReturn(CompletableFuture.completedFuture(new UserId("broadcaster1")));
+        when(subscriptionService.subscribe(new UserId("broadcaster1")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        service.connect(new Login("streamer")).join();
+
+        verify(badgeCatalogRepository).ensureLoaded(new UserId("broadcaster1"));
+    }
+
+    @Test
+    void connect_whenGetUserIdFails_doesNotTriggerBadgeCatalogLoad() {
+        when(apiClient.getUserId(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("user not found")));
+
+        var result = service.connect(new Login("unknown"));
+
+        assertThrows(Exception.class, result::join);
+        verify(badgeCatalogRepository, never()).ensureLoaded(any());
     }
 
     @Test
@@ -168,6 +195,15 @@ class TwitchApplicationServiceTest {
     }
 
     @Test
+    void logout_clearsBadgeCatalogCache() {
+        when(subscriptionService.unsubscribeAll()).thenReturn(CompletableFuture.completedFuture(null));
+
+        service.logout().join();
+
+        verify(badgeCatalogRepository).clearAll();
+    }
+
+    @Test
     void logout_whenUnsubscribeAllFails_doesNotCloseOrLogout() {
         when(subscriptionService.unsubscribeAll())
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("disconnect error")));
@@ -177,6 +213,7 @@ class TwitchApplicationServiceTest {
         assertThrows(Exception.class, result::join);
         verify(subscriptionService, never()).close();
         verify(authService, never()).logout();
+        verify(badgeCatalogRepository, never()).clearAll();
     }
 
     @Test
