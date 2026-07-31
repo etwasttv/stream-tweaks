@@ -35,6 +35,9 @@
 1. `checkout`（`fetch-depth: 0` / `fetch-tags: true` / `persist-credentials: false`）
 2. `.github/actions/setup-build`（`gradle.properties` の `java_version` から JDK を用意）
 3. `compute`: 入力検証・バージョン検証・タグ採番・ローダー別の前回タグ解決（**まだ push しない**）
+   - `escape_regex` / `prev_tag_for_loader` / `older_tag` / `oldest_tag` / `validate_tag_ref` は
+     `scripts/release_lib.sh` に抽出されており、`scripts/tests/test_release_lib.sh`
+     （`.github/workflows/build.yml` の `script-tests` ジョブで実行）でユニットテストされています。
 4. `changelog`: ローダー別リリースノートとまとめノートを生成し、artifact として保存
 5. `build`: `loaders` に応じて、タグ push 前に対象ローダーをビルド
    - `all`: `./gradlew clean build --stacktrace "-Pmod_version=<version>"`
