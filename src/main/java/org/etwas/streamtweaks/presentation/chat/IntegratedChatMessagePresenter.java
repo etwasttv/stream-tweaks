@@ -1,7 +1,9 @@
 package org.etwas.streamtweaks.presentation.chat;
 
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import org.etwas.streamtweaks.platform.PlatformId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,9 +52,18 @@ public final class IntegratedChatMessagePresenter {
      */
     // 削除時にタグを読み出せるよう、静的型は Component（インターフェース）にしておく。
     Component compose(NormalizedChatMessage message) {
-        return Component.empty()
+        MutableComponent composed = Component.empty()
                 .append(PlatformChatStyles.prefixFor(message.platform()))
-                .append(Component.literal(" "))
+                .append(Component.literal(" "));
+        List<Component> badges = message.badges();
+        if (!badges.isEmpty()) {
+            // バッジは届いた順（Twitchのbadges配列の順序）どおりに並べる。
+            for (Component badge : badges) {
+                composed.append(badge);
+            }
+            composed.append(Component.literal(" "));
+        }
+        return composed
                 .append(message.authorDisplay())
                 .append(Component.literal(": "))
                 .append(message.content());

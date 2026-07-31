@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationOrchestrator;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationResult;
+import org.etwas.streamtweaks.twitch.badge.BadgeCatalogRepository;
 import org.etwas.streamtweaks.twitch.core.Login;
 import org.etwas.streamtweaks.twitch.core.TwitchApiClient;
 import org.etwas.streamtweaks.twitch.subscription.EventSubOrchestrator;
@@ -17,15 +18,18 @@ public final class TwitchApplicationService {
     private final AuthenticationOrchestrator authService;
     private final EventSubOrchestrator subscriptionService;
     private final TwitchApiClient apiClient;
+    private final BadgeCatalogRepository badgeCatalogRepository;
     private final Set<Login> subscribedLogins = new CopyOnWriteArraySet<>();
 
     public TwitchApplicationService(
             AuthenticationOrchestrator authService,
             EventSubOrchestrator subscriptionService,
-            TwitchApiClient apiClient) {
+            TwitchApiClient apiClient,
+            BadgeCatalogRepository badgeCatalogRepository) {
         this.authService = authService;
         this.subscriptionService = subscriptionService;
         this.apiClient = apiClient;
+        this.badgeCatalogRepository = badgeCatalogRepository;
     }
 
     public CompletableFuture<AuthenticationResult> login(Consumer<URI> onUriReady) {
@@ -46,7 +50,14 @@ public final class TwitchApplicationService {
     public CompletableFuture<Void> connect(Login login) {
         return apiClient
                 .getUserId(login)
-                .thenCompose(subscriptionService::subscribe)
+                .thenCompose(broadcasterId -> {
+                    // バッジカタログの取得はベストエフォート・fire-and-forget。
+                    // 接続のクリティカルパスには乗せず、失敗してもconnect()自体は成功として扱う
+                    // （BadgeCatalogRepository内部で例外を握りつぶし正常完了するため、ここでは
+                    // 戻り値を待ち合わせない）。
+                    badgeCatalogRepository.ensureLoaded(broadcasterId);
+                    return subscriptionService.subscribe(broadcasterId);
+                })
                 .thenApply(v -> {
                     subscribedLogins.add(login);
                     return v;
@@ -68,6 +79,9 @@ public final class TwitchApplicationService {
             subscribedLogins.clear();
             subscriptionService.close();
             authService.logout();
+            // Twitchから完全に手を引く操作なので、チャンネル単位のバッジキャッシュも
+            // ここで全クリアする（disconnect()単体では破棄しない。再接続時の再取得コストを避けるため）。
+            badgeCatalogRepository.clearAll();
         });
     }
 

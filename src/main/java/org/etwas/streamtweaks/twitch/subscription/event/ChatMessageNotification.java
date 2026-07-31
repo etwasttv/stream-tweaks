@@ -33,7 +33,18 @@ public record ChatMessageNotification(SubscriptionInfo subscription, ChatMessage
             @SerializedName("chatter_user_name") String chatterUserName,
             @SerializedName("message_id") String messageId,
             Message message,
-            String color) {}
+            String color,
+            @Nullable List<Badge> badges) {}
+
+    /**
+     * chatterが装着しているバッジ1件分の識別情報。画像URLは含まれないため、
+     * 実際の画像は {@code twitch.badge} パッケージのカタログ経由で別途解決する。
+     *
+     * @param setId バッジセットのID（例: "moderator", "subscriber"）
+     * @param id セット内のバージョンID（例: サブスクライバーバッジの継続月数tier）
+     * @param info 補足情報（継続月数等）。将来のツールチップ表示用に保持する
+     */
+    public record Badge(@SerializedName("set_id") String setId, String id, @Nullable String info) {}
 
     public record Message(String text, @Nullable @SerializedName("fragments") List<Fragment> fragments) {}
 

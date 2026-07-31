@@ -16,13 +16,17 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  *
  * <p>再構築に公開APIの {@code rescaleChat()} を使うと {@code resetChatScroll()} が伴い、
  * ユーザーのスクロール位置が飛ぶため、{@code refreshTrimmedMessages()} を直接呼ぶ。
+ *
+ * <p>{@code remap = false} については {@link FontStorageMixin} のクラスコメントを参照
+ * (Forge の Mixin AP が {@code official} マッピングチャンネルを認識しないための対処で、
+ * Fabric/NeoForge には影響しない)。
  */
 @Mixin(ChatComponent.class)
 public interface ChatComponentAccessor {
 
-    @Accessor("allMessages")
+    @Accessor(value = "allMessages", remap = false)
     List<GuiMessage> streamTweaks$getAllMessages();
 
-    @Invoker("refreshTrimmedMessages")
+    @Invoker(value = "refreshTrimmedMessages", remap = false)
     void streamTweaks$refreshTrimmedMessages();
 }

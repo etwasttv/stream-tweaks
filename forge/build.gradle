@@ -1,0 +1,104 @@
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle'
+    id 'maven-publish'
+}
+
+base {
+    archivesName = "${rootProject.archives_base_name}-forge-mc${rootProject.minecraft_version}"
+}
+
+dependencies {
+    implementation "com.google.code.gson:gson:${rootProject.gson_version}"
+    implementation minecraft.dependency("net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}")
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
+}
+
+sourceSets {
+    main {
+        // Loader-agnostic code lives in the root source tree; Forge-only code lives in forge/src.
+        java {
+            srcDir '../src/main/java'
+        }
+        resources {
+            srcDir '../src/main/resources'
+        }
+    }
+}
+
+processResources {
+    inputs.properties(
+            "minecraft_version": rootProject.minecraft_version,
+            "forge_mod_id": rootProject.forge_mod_id,
+            "mod_name": rootProject.mod_name,
+            "mod_version": project.version,
+            "forge_version": rootProject.forge_version)
+    filteringCharset = "UTF-8"
+
+    filesMatching("META-INF/mods.toml") {
+        expand(
+                "minecraft_version": rootProject.minecraft_version,
+                "forge_mod_id": rootProject.forge_mod_id,
+                "mod_name": rootProject.mod_name,
+                "mod_version": project.version,
+                "forge_version": rootProject.forge_version)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: rootProject.minecraft_version
+
+    runs {
+        configureEach {
+            workingDir = file("../run/forge")
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+            args "--mixin.config=stream-tweaks.mixins.json"
+            if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+                jvmArgs '-XstartOnFirstThread'
+            }
+            // NOTE: :forge:runClient は現時点でクラッシュする既知の問題がある
+            // (CLAUDE.md の「実行とテスト」節の既知の制限事項を参照)。
+            // この mods{} 宣言自体はAPIとしては正しい使い方だが、ForgeGradle 7.0.31 の
+            // SlimeLauncher はこれを開発実行時のクラスパス結合には反映しない
+            // (MOD_CLASSES 環境変数はfmlloader-26.2-65.1.0では読まれず、代替の仕組みも
+            // 現状見当たらない)。:forge:build で生成される本番用jarには影響しない。
+            mods {
+                stream_tweaks {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            client = true
+        }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+jar {
+    manifest {
+        attributes([
+            'MixinConfigs': 'stream-tweaks.mixins.json'
+        ])
+    }
+    from(rootProject.file("LICENSE.txt")) {
+        rename { "${it}_${rootProject.archives_base_name}" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = "${rootProject.archives_base_name}-forge"
+            from components.java
+        }
+    }
+}

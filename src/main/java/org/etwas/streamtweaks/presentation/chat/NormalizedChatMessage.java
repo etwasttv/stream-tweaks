@@ -1,5 +1,6 @@
 package org.etwas.streamtweaks.presentation.chat;
 
+import java.util.List;
 import net.minecraft.network.chat.Component;
 import org.etwas.streamtweaks.platform.PlatformId;
 
@@ -16,6 +17,11 @@ import org.etwas.streamtweaks.platform.PlatformId;
  * @param authorId 投稿者のプラットフォーム内ユーザーID
  * @param authorDisplay 投稿者名として表示するComponent（色付け等の装飾込み）
  * @param content メッセージ本文として表示するComponent（絵文字解決込み）
+ * @param badges 投稿者が装着しているバッジを表示順に並べたComponentのリスト（画像アイコン1個1個）。
+ *     {@code authorDisplay} に事前合成せず専用フィールドにしているのは、投稿者名表示と
+ *     バッジ表示の責務を分離し、{@link IntegratedChatMessagePresenter#compose} 側で
+ *     挿入位置やレイアウトを制御できるようにするため。空リストは「バッジなし」を表す
+ *     （未解決・未知のバッジは呼び出し側で個別にスキップ済みの前提）。
  */
 public record NormalizedChatMessage(
         PlatformId platform,
@@ -23,4 +29,24 @@ public record NormalizedChatMessage(
         String channelId,
         String authorId,
         Component authorDisplay,
-        Component content) {}
+        Component content,
+        List<Component> badges) {
+
+    public NormalizedChatMessage {
+        badges = badges == null ? List.of() : List.copyOf(badges);
+    }
+
+    /**
+     * バッジ情報を持たないプラットフォーム・呼び出し元向けの補助コンストラクタ。
+     * {@code badges} は空リストになる。
+     */
+    public NormalizedChatMessage(
+            PlatformId platform,
+            String messageId,
+            String channelId,
+            String authorId,
+            Component authorDisplay,
+            Component content) {
+        this(platform, messageId, channelId, authorId, authorDisplay, content, List.of());
+    }
+}
