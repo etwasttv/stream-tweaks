@@ -31,9 +31,17 @@ class ParseBulletBlocksTest(unittest.TestCase):
         (bullet,) = ct.parse_bullet_blocks("- [neoforge] foo\n")
         self.assertEqual(bullet.loaders, frozenset({"neoforge"}))
 
+    def test_forge_tag(self):
+        (bullet,) = ct.parse_bullet_blocks("- [forge] foo\n")
+        self.assertEqual(bullet.loaders, frozenset({"forge"}))
+
     def test_multi_loader_tag(self):
         (bullet,) = ct.parse_bullet_blocks("- [fabric,neoforge] foo\n")
         self.assertEqual(bullet.loaders, frozenset({"fabric", "neoforge"}))
+
+    def test_all_three_loader_tag(self):
+        (bullet,) = ct.parse_bullet_blocks("- [fabric,neoforge,forge] foo\n")
+        self.assertEqual(bullet.loaders, frozenset({"fabric", "neoforge", "forge"}))
 
     def test_multi_loader_tag_with_spaces(self):
         (bullet,) = ct.parse_bullet_blocks("- [fabric, neoforge] foo\n")
@@ -94,6 +102,9 @@ class StripLoaderTagTest(unittest.TestCase):
 
     def test_strips_multi_loader_tag(self):
         self.assertEqual(ct.strip_loader_tag("- [fabric, neoforge] foo"), "- foo")
+
+    def test_strips_forge_tag(self):
+        self.assertEqual(ct.strip_loader_tag("- [forge] foo"), "- foo")
 
     def test_strips_case_insensitive_tag(self):
         self.assertEqual(ct.strip_loader_tag("- [Fabric] foo"), "- foo")
@@ -249,6 +260,63 @@ class FilterSectionBodyTest(unittest.TestCase):
         )
 
 
+SAMPLE_BODY_3 = """
+### Added
+- 共通の追加
+- [fabric] Fabric だけの追加
+- [neoforge] NeoForge だけの追加
+- [forge] Forge だけの追加
+
+### Changed
+- [fabric,neoforge,forge] 全ローダーの変更
+
+### Fixed
+- [forge] Forge だけの修正
+"""
+
+
+class FilterSectionBodyForgeTest(unittest.TestCase):
+    """forge 対応の対称性を確認する（fabric/neoforge の既存パターンを forge にも適用）。"""
+
+    def test_forge_keeps_common_and_forge(self):
+        result = ct.filter_section_body(SAMPLE_BODY_3, frozenset({"forge"}), strip_tags=False)
+        self.assertEqual(
+            result,
+            "### Added\n"
+            "- 共通の追加\n"
+            "- [forge] Forge だけの追加\n"
+            "\n"
+            "### Changed\n"
+            "- [fabric,neoforge,forge] 全ローダーの変更\n"
+            "\n"
+            "### Fixed\n"
+            "- [forge] Forge だけの修正",
+        )
+
+    def test_strip_tags_removes_forge_tag(self):
+        result = ct.filter_section_body(SAMPLE_BODY_3, frozenset({"forge"}), strip_tags=True)
+        self.assertIn("- Forge だけの追加", result)
+        self.assertNotIn("[forge]", result)
+
+    def test_all_three_loaders_keeps_everything(self):
+        result = ct.filter_section_body(
+            SAMPLE_BODY_3, frozenset({"fabric", "neoforge", "forge"}), strip_tags=False
+        )
+        self.assertIn("### Added", result)
+        self.assertIn("### Changed", result)
+        self.assertIn("### Fixed", result)
+        self.assertIn("- [fabric] Fabric だけの追加", result)
+        self.assertIn("- [neoforge] NeoForge だけの追加", result)
+        self.assertIn("- [forge] Forge だけの追加", result)
+
+    def test_fabric_does_not_leak_forge_only_content(self):
+        """フェイルセーフのフォールバックで forge 専用項目が fabric ノートに漏れないこと。"""
+        body = "\n### Added\n- [forge] foo\n\n### Fixed\n- [forge] bar\n"
+        result = ct.filter_section_body(body, frozenset({"fabric"}), strip_tags=True)
+        self.assertEqual(result, "")
+        self.assertNotIn("foo", result)
+
+
 class ParseLoadersArgTest(unittest.TestCase):
     def test_none(self):
         self.assertIsNone(ct.parse_loaders_arg(None))
@@ -264,22 +332,28 @@ class ParseLoadersArgTest(unittest.TestCase):
     def test_single(self):
         self.assertEqual(ct.parse_loaders_arg("fabric"), frozenset({"fabric"}))
         self.assertEqual(ct.parse_loaders_arg("neoforge"), frozenset({"neoforge"}))
+        self.assertEqual(ct.parse_loaders_arg("forge"), frozenset({"forge"}))
 
     def test_multiple(self):
         self.assertEqual(ct.parse_loaders_arg("fabric,neoforge"), frozenset({"fabric", "neoforge"}))
         self.assertEqual(ct.parse_loaders_arg("fabric, neoforge"), frozenset({"fabric", "neoforge"}))
+        self.assertEqual(
+            ct.parse_loaders_arg("fabric,neoforge,forge"),
+            frozenset({"fabric", "neoforge", "forge"}),
+        )
 
     def test_case_insensitive(self):
         self.assertEqual(ct.parse_loaders_arg("Fabric"), frozenset({"fabric"}))
+        self.assertEqual(ct.parse_loaders_arg("Forge"), frozenset({"forge"}))
 
     def test_unknown_loader_exits(self):
         with self.assertRaises(SystemExit) as cm:
-            ct.parse_loaders_arg("forge")
-        self.assertIn("forge", str(cm.exception))
+            ct.parse_loaders_arg("quilt")
+        self.assertIn("quilt", str(cm.exception))
 
     def test_partially_unknown_loader_exits(self):
         with self.assertRaises(SystemExit):
-            ct.parse_loaders_arg("fabric,forge")
+            ct.parse_loaders_arg("fabric,quilt")
 
     def test_trailing_comma_exits(self):
         with self.assertRaises(SystemExit):
@@ -332,6 +406,11 @@ class DiffUnreleasedTest(unittest.TestCase):
         previous = "\n### Added\n- [fabric] a\n"
         current = "\n### Added\n- [fabric] a\n- [neoforge] b\n"
         self.assertEqual(ct.diff_unreleased(current, previous), "### Added\n- [neoforge] b")
+
+    def test_forge_tag_diff_is_detected(self):
+        previous = "\n### Added\n- [fabric] a\n"
+        current = "\n### Added\n- [fabric] a\n- [forge] c\n"
+        self.assertEqual(ct.diff_unreleased(current, previous), "### Added\n- [forge] c")
 
     def test_adding_a_tag_to_an_existing_bullet_is_not_a_new_entry(self):
         """既存 bullet に後からタグを付けただけでは二重掲載しない。"""
@@ -398,7 +477,7 @@ class RealChangelogTest(unittest.TestCase):
     def test_all_sections_survive_filtering_unchanged_content(self):
         """タグの無い箇条書きは、どのローダーで絞り込んでも全項目が残る。"""
         for name, body in self.bodies.items():
-            for loader in ("fabric", "neoforge"):
+            for loader in ("fabric", "neoforge", "forge"):
                 with self.subTest(section=name, loader=loader):
                     filtered = ct.filter_section_body(body, frozenset({loader}), strip_tags=True)
                     for line in body.splitlines():
@@ -569,6 +648,35 @@ class CliIntegrationTest(unittest.TestCase):
             notes = self.run_tool("read", "--version", "0.1.0", "--file", str(changelog), "--loaders", "fabric")
         self.assertEqual(notes, "### Added\n- 初回\n")
 
+    def test_release_with_forge_loader_filters_notes(self):
+        """forge も fabric/neoforge と対称に --loaders で絞り込めること。"""
+        content = CLI_CHANGELOG.replace(
+            "- [neoforge] NeoForge だけの追加\n",
+            "- [neoforge] NeoForge だけの追加\n- [forge] Forge だけの追加\n",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            changelog = pathlib.Path(tmp) / "CHANGELOG.md"
+            changelog.write_text(content, encoding="utf-8")
+            notes = self.run_tool(
+                "release",
+                "--version",
+                "0.9.9",
+                "--date",
+                "2026-07-28",
+                "--file",
+                str(changelog),
+                "--update-file",
+                "--loaders",
+                "forge",
+            )
+            written = changelog.read_text(encoding="utf-8")
+
+        self.assertIn("- [forge] Forge だけの追加", written)
+        self.assertIn("Forge だけの追加", notes)
+        self.assertNotIn("Fabric だけの追加", notes)
+        self.assertNotIn("NeoForge だけの追加", notes)
+        self.assertNotIn("[forge]", notes)
+
     def test_unknown_loader_exits_nonzero_without_touching_changelog(self):
         with tempfile.TemporaryDirectory() as tmp:
             changelog = pathlib.Path(tmp) / "CHANGELOG.md"
@@ -576,14 +684,14 @@ class CliIntegrationTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable, str(TOOL_PATH), "release", "--version", "0.9.9",
-                    "--file", str(changelog), "--update-file", "--loaders", "forge",
+                    "--file", str(changelog), "--update-file", "--loaders", "quilt",
                 ],
                 capture_output=True,
                 text=True,
                 cwd=str(REPO_ROOT),
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("forge", result.stderr)
+            self.assertIn("quilt", result.stderr)
             self.assertEqual(changelog.read_text(encoding="utf-8"), CLI_CHANGELOG)
 
 

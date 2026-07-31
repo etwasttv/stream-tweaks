@@ -201,12 +201,10 @@ authOrchestrator.startAuthentication(uri -> {
 
 タグの発行からビルド・公開までを `.github/workflows/release.yml`（**Release** ワークフロー）が1本で行う。手動で `git tag` / `git push` することは基本的に不要。
 
-> **Forgeは現時点で `release.yml` の対象外**。`loaders` 入力は `both`（Fabric+NeoForge）/ `fabric` / `neoforge` のみで、Forge向けのタグ採番・Modrinth公開・Discord通知には未対応（`build.yml` でのCIビルド確認までは対応済み）。Forgeの正式リリース対応は別PBIで扱う。
-
 > **背景**: 以前はタグ発行用ワークフローと `push: tags` トリガーの公開用ワークフローを分けていたが、GitHub Actions の仕様上「デフォルトの `GITHUB_TOKEN` で push したタグは他のワークフローをトリガーしない」という制限に引っかかり、タグは発行されても公開ワークフローが発火しない問題が起きた。そのため1本のワークフローに統合し、同一ジョブ内でタグ発行から公開まで完結させている。
 
 - `mod_version` / `minecraft_version` は対象バージョンブランチの `gradle.properties` から自動取得される（形式を正規表現で検証してから使用）
-- タグ名は自動採番される（手で決めない）。Fabric / NeoForge 共通の**1系列**で、ローダー別サフィックスは付けない
+- タグ名は自動採番される（手で決めない）。Fabric / NeoForge / Forge 共通の**1系列**で、ローダー別サフィックスは付けない
   - alpha / beta: 同じ `mod_version` 内で前回タグの連番 + 1（`vX.Y.Z-alpha.N+mcA.B.C` / `vX.Y.Z-beta.N+mcA.B.C`）
   - release: `vX.Y.Z+mcA.B.C`
 - **実行順序は「ビルド → タグ push → publish」**。ビルド失敗ではタグが作られないため、失敗の大半はそのまま再実行できる
@@ -218,25 +216,27 @@ authOrchestrator.startAuthentication(uri -> {
 
 | 値 | 公開対象 |
 | --- | --- |
-| `both`（既定） | Fabric + NeoForge |
+| `all`（既定） | Fabric + NeoForge + Forge |
 | `fabric` | Fabric のみ |
 | `neoforge` | NeoForge のみ |
+| `forge` | Forge のみ |
 
-**`channel=release` では `loaders=both` 必須**（安定版タグは `vX.Y.Z+mcA.B.C` 固定のため、片方だけ公開すると2回目の実行でタグが衝突する）。`compute` ステップで即座に失敗する。alpha / beta は連番採番なので片方だけの公開が可能で、次回はタグメッセージの `Loaders:` 行から「そのローダーを最後に公開したタグ」を探して差分ノートを作る。
+**`channel=release` では `loaders=all` 必須**（安定版タグは `vX.Y.Z+mcA.B.C` 固定のため、一部のローダーだけ公開すると2回目の実行でタグが衝突する）。`compute` ステップで即座に失敗する。alpha / beta は連番採番なので単独ローダーの公開が可能で、次回はタグメッセージの `Loaders:` 行から「そのローダーを最後に公開したタグ」を探して差分ノートを作る。
 
 ### CHANGELOG のローダータグ記法
 
-`CHANGELOG.md` の箇条書き先頭に `[fabric]` / `[neoforge]` / `[fabric,neoforge]` を付けると、リリースノート生成時に `scripts/changelog_tool.py --loaders` で絞り込まれる。
+`CHANGELOG.md` の箇条書き先頭に `[fabric]` / `[neoforge]` / `[forge]` / `[fabric,neoforge,forge]` を付けると、リリースノート生成時に `scripts/changelog_tool.py --loaders` で絞り込まれる。
 
 ```markdown
 ### Fixed
 - 共通の不具合を修正（タグ無し = 全ローダー向け）
 - [fabric] Fabric でのみ発生する不具合を修正
 - [neoforge] NeoForge でのみ発生する不具合を修正
+- [forge] Forge でのみ発生する不具合を修正
 ```
 
 - タグ無しの箇条書きは共通扱いで、どのローダーのノートにも必ず含まれる
-- **本文が完全に同じ内容なら `[fabric,neoforge]` として1件にまとめる**（`[fabric]` と `[neoforge]` に分けて書くとまとめノートで2行になる）
+- **本文が完全に同じ内容なら `[fabric,neoforge,forge]` のように1件にまとめる**（`[fabric]` と `[neoforge]` のように分けて書くとまとめノートで複数行になる）
 - 未知のタグ（例: `[quilt]`）や Markdown リンク記法 `- [text](url)` はローダータグとみなされない
 - 単一ローダー向けノートでは出力時にタグが自動除去される。`CHANGELOG.md` 自体には常にタグ付きのまま保存される
 
@@ -246,7 +246,7 @@ authOrchestrator.startAuthentication(uri -> {
 
 ```bash
 # GitHub CLI から実行する場合
-gh workflow run release.yml --ref 26.2 -f channel=alpha -f loaders=both
+gh workflow run release.yml --ref 26.2 -f channel=alpha -f loaders=all
 
 # Fabric だけ先に配りたい場合
 gh workflow run release.yml --ref 26.2 -f channel=beta -f loaders=fabric
@@ -288,7 +288,7 @@ gh pr create --base 26.2
 #### 4. PR マージ後に Release ワークフローを実行
 
 ```bash
-gh workflow run release.yml --ref 26.2 -f channel=release -f loaders=both
+gh workflow run release.yml --ref 26.2 -f channel=release -f loaders=all
 ```
 
 `channel=release` を選択して実行すると、まず `## [0.1.2]` セクションからリリースノートを生成してビルドし、成功後に `v0.1.2+mc26.2` 形式のタグを push してから Modrinth / GitHub Release / Discord に自動投稿する。
@@ -315,7 +315,7 @@ gh pr create --base 26.2
 # PR マージ後
 
 # 4. 再度 Release ワークフローを実行
-gh workflow run release.yml --ref 26.2 -f channel=release -f loaders=both
+gh workflow run release.yml --ref 26.2 -f channel=release -f loaders=all
 ```
 
 Modrinth に version が作成済みの場合は、Modrinth 管理画面から該当 version を削除してから再実行する（同じ version 番号は再利用できない）。
