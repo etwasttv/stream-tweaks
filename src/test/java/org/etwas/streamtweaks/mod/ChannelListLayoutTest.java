@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 /**
  * Connected Channelsリストのスクロール・レイアウト計算（{@link ChannelListLayout}）のテスト。
  *
- * <p>レビュー指摘: {@code extractRenderState()} 内の {@code enableScissor}/{@code
- * disableScissor} はテキスト描画のみをクリップしており、{@code addRenderableWidget} で追加される
- * Disconnectボタン自体は別の描画パスを通るためクリップされない。現状は
- * {@code channelListVisibleLineCount()}（floor除算）とボタンのY座標計算が数式上整合しているため
+ * <p>レビュー指摘: {@code extractRenderState()} 内のテキスト描画（かつて
+ * {@code enableScissor}/{@code disableScissor} でクリップしていたが、表示領域の高さが0になると
+ * クリップ矩形が空になりテキストが完全に不可視になる不具合があったため、現在は
+ * {@code channelListVisibleLineCount() > 0} の判定で描画可否を制御する方式に変更した）と、
+ * {@code addRenderableWidget} で追加される Disconnectボタン（別の描画パスを通る）は、
+ * {@code channelListVisibleLineCount()}（floor除算）とボタンのY座標計算が数式上整合していることで
  * 範囲内に収まっているが、この整合はテストで保証されていなかった。
  *
  * <p>このテストは {@code StreamTweaksConfigScreen} が実際に使っている定数（{@code BUTTON_HEIGHT},
@@ -130,6 +132,38 @@ class ChannelListLayoutTest {
         assertTrue(ChannelListLayout
                 .visibleEntryYPositions(10, 0, areaTop, visibleLineCount, BUTTON_HEIGHT)
                 .isEmpty());
+    }
+
+    /**
+     * リグレッションテスト: Minecraftのデフォルト起動解像度（854x480、GUI拡大率Auto）では
+     * GUI論理座標の高さがちょうど240pxになる（{@code Window.calculateScale} /
+     * {@code Window.setGuiScale} の仕様: 854/2=427, 480/2=240 で、これ以上拡大すると
+     * 320x240の最小要件を満たせなくなるためscale=2で確定する）。
+     *
+     * <p>この画面高さでは現在の定数（Y_CHANNEL_LIST_START, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM,
+     * CHANNEL_LIST_BOTTOM_MARGIN）の組み合わせにより areaBottom が areaTop まで潰れ、
+     * visibleLineCount が0になる。かつてはこの状態でも {@code enableScissor}/{@code
+     * disableScissor} を使ってテキストを無条件に描画しようとしており、
+     * {@code GuiGraphicsExtractor.ScissorStack.push()} が交差matrix高さ0のクリップ矩形を
+     * 空矩形（0,0,0,0）に変換してしまうため「No channels connected」等のテキストが完全に
+     * 不可視になる不具合があった（物理ウィンドウサイズ自体は854x480であり、見た目上は
+     * 「小さいウィンドウ」には見えないため気づきにくい）。
+     *
+     * <p>このテストは、そもそもこの画面高さで visibleLineCount が0になること自体を固定化し、
+     * {@code StreamTweaksConfigScreen#extractRenderState} が
+     * {@code channelListVisibleLineCount() > 0} を満たす場合にのみリスト部分を描画する
+     * ことで、この既知の潰れケースでもBackボタンとの重なりが起きないことを保証する前提を
+     * 明示する。
+     */
+    @Test
+    void visibleLineCountIsZeroAtVanillaDefaultLaunchResolution() {
+        int areaTop = ChannelListLayout.areaTop(Y_CHANNEL_LIST_START);
+        int vanillaDefaultGuiScaledHeight = 240;
+        int areaBottom = ChannelListLayout.areaBottom(
+                vanillaDefaultGuiScaledHeight, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM, CHANNEL_LIST_BOTTOM_MARGIN, areaTop);
+
+        assertEquals(areaTop, areaBottom, "the list area collapses to zero height at the vanilla default resolution");
+        assertEquals(0, ChannelListLayout.visibleLineCount(areaTop, areaBottom, BUTTON_HEIGHT));
     }
 
     @Test

@@ -193,29 +193,48 @@ public class StreamTweaksConfigScreen extends Screen {
         context.text(this.font, Component.literal("Connected Channels:"), leftX, Y_CHANNEL_LABEL, LABEL_COLOR);
 
         // Connected Channelsのリスト部分（No channels connected / 各チャンネル行）は
-        // Backボタンと重ならない固定領域(channelListAreaTop〜channelListAreaBottom)に収め、
-        // その範囲外に描画がはみ出さないようscissorでクリッピングする。
-        int listAreaLeft = leftX;
-        int listAreaRight = leftX + CHANNEL_LIST_AREA_WIDTH;
-        int listAreaTop = channelListAreaTop();
-        int listAreaBottom = channelListAreaBottom();
-        context.enableScissor(listAreaLeft, listAreaTop, listAreaRight, listAreaBottom);
-        if (subscribedLogins.isEmpty()) {
-            // チャンネル行と同じ channelListAreaTop() を基準にすることで、
-            // 空リスト時のテキストと実際のチャンネル行のY座標が一致するようにする。
-            context.text(
-                    this.font, Component.literal("  No channels connected"), leftX, listAreaTop, 0xFF888888);
-        } else {
-            for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
+        // Backボタンと重ならない固定領域(channelListAreaTop〜channelListAreaBottom)に収める。
+        //
+        // 以前は context.enableScissor(...)/disableScissor() でこの領域をクリップしていたが、
+        // GuiGraphicsExtractor.ScissorStack.push() は「新しい矩形と現在の矩形の交差」を計算する際、
+        // ScreenRectangle.intersection() の判定が `top < bottom` という厳密不等号であるため、
+        // channelListAreaBottom() == channelListAreaTop()（＝表示領域の高さが0）になった瞬間に
+        // 交差がnull扱いとなり ScreenRectangle.empty()（0,0,0,0）が積まれ、以降このスコープで
+        // 描画するテキストが完全に不可視になってしまうバグがあった。
+        // このケースは決して極端な最小ウィンドウでのみ起きるわけではなく、Minecraftのデフォルト
+        // 起動解像度（854x480、GUI拡大率Auto）でGUI論理座標の高さがちょうど240pxになる場合に
+        // 現在の定数（Y_CHANNEL_LIST_START, BACK_BUTTON_Y_OFFSET_FROM_BOTTOM,
+        // CHANNEL_LIST_BOTTOM_MARGIN）の組み合わせで実際に発生し、物理ウィンドウサイズを見た目で
+        // 判断すると「十分広い」と感じても再現し得る。
+        //
+        // 行の表示可否は既に visibleEntryYPositions()（channelListVisibleLineCount()内部で
+        // 使われる同じfloor除算ロジック）が表示領域に収まる分だけを返す設計になっており、
+        // scissorはあくまで「保険」的な位置づけだった。空リスト時のテキストにも同じ
+        // channelListVisibleLineCount() > 0 の判定を適用することで、
+        // - 表示領域に1行分でも収まるなら（ほとんどの実用的な画面サイズ）scissorに頼らず必ず表示し、
+        // - 収まらないほど極端に低い画面では、Backボタンと重ならないよう描画自体を省略する
+        // という、rowsと空リスト表示で一貫した挙動にする。
+        if (channelListVisibleLineCount() > 0) {
+            if (subscribedLogins.isEmpty()) {
+                // チャンネル行と同じ channelListAreaTop() を基準にすることで、
+                // 空リスト時のテキストと実際のチャンネル行のY座標が一致するようにする。
                 context.text(
                         this.font,
-                        Component.literal("  - " + entry.getKey().value()),
+                        Component.literal("  No channels connected"),
                         leftX,
-                        entry.getValue(),
-                        TEXT_COLOR);
+                        channelListAreaTop(),
+                        0xFF888888);
+            } else {
+                for (Map.Entry<Login, Integer> entry : visibleChannelEntries()) {
+                    context.text(
+                            this.font,
+                            Component.literal("  - " + entry.getKey().value()),
+                            leftX,
+                            entry.getValue(),
+                            TEXT_COLOR);
+                }
             }
         }
-        context.disableScissor();
     }
 
     @Override

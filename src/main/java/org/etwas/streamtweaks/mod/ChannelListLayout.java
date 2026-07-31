@@ -11,10 +11,16 @@ import net.minecraft.util.Mth;
  * スクロール位置といったプリミティブ値だけを入力に取る。そのため {@code StreamTweaksConfigScreen}
  * を経由せずに単体テストできる（テストは {@code ChannelListLayoutTest} を参照）。
  *
- * <p>「No channels connected / 各チャンネル行」のテキストは{@code enableScissor}/{@code
- * disableScissor}でクリップされる一方、Disconnectボタンは{@code addRenderableWidget}で個別に
- * 配置される別の描画パスを通るため、両者が同じY座標計算・同じ行の高さを共有していることを
- * ここに集約して保証する。
+ * <p>「No channels connected / 各チャンネル行」のテキストは{@code
+ * StreamTweaksConfigScreen#extractRenderState}で{@code channelListVisibleLineCount() > 0}の
+ * ときだけ描画される一方、Disconnectボタンは{@code addRenderableWidget}で個別に配置される別の
+ * 描画パスを通るため、両者が同じY座標計算・同じ行の高さ・同じ「表示領域に収まるか」の判定を
+ * 共有していることをここに集約して保証する。
+ *
+ * <p>以前はテキスト側を{@code enableScissor}/{@code disableScissor}でクリップしていたが、表示領域の
+ * 高さが0になるケース（Minecraftのデフォルト起動解像度でも発生し得る）でクリップ矩形が空になり、
+ * テキストが完全に不可視になる不具合があったため、クリッピングではなく本クラスの計算結果で
+ * 描画可否を判定する方式に変更した。
  */
 final class ChannelListLayout {
 
