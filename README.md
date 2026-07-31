@@ -2,7 +2,7 @@
 
 > Connect Minecraft with Twitch
 
-StreamTweaks is a client-side Minecraft mod for Fabric and NeoForge that bridges your Minecraft gameplay with Twitch, making streaming more interactive and engaging. It allows you to see Twitch chat directly inside Minecraft and provides tools for smoother interaction with your audience.
+StreamTweaks is a client-side Minecraft mod for Fabric, NeoForge, and Forge that bridges your Minecraft gameplay with Twitch, making streaming more interactive and engaging. It allows you to see Twitch chat directly inside Minecraft and provides tools for smoother interaction with your audience.
 
 ## Features
 
@@ -33,21 +33,24 @@ StreamTweaks is a client-side Minecraft mod for Fabric and NeoForge that bridges
   - [ModMenu](https://modrinth.com/mod/modmenu) (optional, Fabric only) — enables the in-game config screen
 - NeoForge:
   - NeoForge 26.2.0.25-beta+
+- Forge:
+  - [Minecraft Forge](https://files.minecraftforge.net/) 65.1.0+
 - Port **7654** available on localhost (used for Twitch OAuth callback)
 
 ## Installation
 
-1. Install Fabric or NeoForge for Minecraft 26.2.
+1. Install Fabric, NeoForge, or Forge for Minecraft 26.2.
 2. For Fabric, download [Fabric API](https://modrinth.com/mod/fabric-api) and place it in your `mods` folder.
 3. Download the matching StreamTweaks `.jar` from the [Releases](../../releases) page:
    - Fabric: `stream-tweaks-fabric-mc26.2-<version>.jar`
    - NeoForge: `stream-tweaks-neoforge-mc26.2-<version>.jar`
+   - Forge: `stream-tweaks-forge-mc26.2-<version>.jar`
 4. Place the StreamTweaks `.jar` into your `.minecraft/mods` folder.
-5. Launch Minecraft with the matching Fabric or NeoForge profile.
+5. Launch Minecraft with the matching Fabric, NeoForge, or Forge profile.
 
 ## Usage
 
-The `/twitch` commands are available on both Fabric and NeoForge. The ModMenu configuration screen is only available in the Fabric build.
+The `/twitch` commands are available on Fabric, NeoForge, and Forge. The ModMenu configuration screen is only available in the Fabric build.
 
 ### Step 1 — Authenticate with Twitch
 

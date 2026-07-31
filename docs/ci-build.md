@@ -1,7 +1,7 @@
 # CI ビルドワークフロー
 
 このプロジェクトの CI は `.github/workflows/build.yml`（**Build** ワークフロー）で実行されます。
-Fabric / NeoForge のマルチローダー構成に合わせてジョブを分割し、変更のあったローダーだけをビルドします。
+Fabric / NeoForge / Forge のマルチローダー構成に合わせてジョブを分割し、変更のあったローダーだけをビルドします。
 
 ## トリガー条件
 
@@ -15,12 +15,13 @@ Fabric / NeoForge のマルチローダー構成に合わせてジョブを分�
 
 | ジョブ | 実行条件 | 内容 |
 | --- | --- | --- |
-| `changes` | 常時 | `dorny/paths-filter` で fabric / neoforge に影響する変更を検知する |
+| `changes` | 常時 | `dorny/paths-filter` で fabric / neoforge / forge に影響する変更を検知する |
 | `format` | 常時 | `./gradlew spotlessCheck --stacktrace` |
 | `test` (Test (shared)) | 常時 | `./gradlew :fabric:test --stacktrace` |
 | `script-tests` (Release Script Tests) | 常時 | `python3 -m py_compile scripts/changelog_tool.py scripts/notify_discord.py` / `python3 -m unittest discover scripts/tests` |
 | `build-fabric` | `changes.outputs.fabric == 'true'` | `./gradlew :fabric:build -x test --stacktrace` |
 | `build-neoforge` | `changes.outputs.neoforge == 'true'` | `./gradlew :neoforge:build --stacktrace` |
+| `build-forge` | `changes.outputs.forge == 'true'` | `./gradlew :forge:build --stacktrace` |
 | `ci-ok` | `always()` | 上記すべての結果を集約する。**唯一の必須ステータスチェック** |
 
 ### path filter
@@ -45,11 +46,14 @@ fabric:
 neoforge:
   - *common
   - 'neoforge/**'
+forge:
+  - *common
+  - 'forge/**'
 ```
 
-つまり共通コード、ビルド設定、workflow を触ると両方のビルドが走り、`fabric/` だけを触ったときは
-`build-neoforge` がスキップされます。`changes` ジョブには `pull-requests: read` を付与しています
-（`pull_request` イベントで差分を取得するために API アクセスが必要なため）。
+つまり共通コード、ビルド設定、workflow を触ると3ローダーすべてのビルドが走り、`fabric/` だけを触った
+ときは `build-neoforge` / `build-forge` がスキップされます。`changes` ジョブには `pull-requests: read`
+を付与しています（`pull_request` イベントで差分を取得するために API アクセスが必要なため）。
 
 ### なぜ `test` は path filter の対象外なのか
 
@@ -100,6 +104,7 @@ Java を上げるときは `gradle.properties` の 1 行を変えるだけで、
 
 - `build-artifacts-fabric-<commit sha>`: `fabric/build/libs/*.jar`（sources / dev jar は除外）
 - `build-artifacts-neoforge-<commit sha>`: `neoforge/build/libs/*.jar`（sources / dev jar は除外）
+- `build-artifacts-forge-<commit sha>`: `forge/build/libs/*.jar`（sources / dev jar は除外）
 - 保持期間: 7 日間
 
 ローダー名を含めることで、両方のビルドが走ったときにアーティファクト名が衝突しないようにしています。
@@ -114,6 +119,7 @@ python3 -m py_compile scripts/changelog_tool.py scripts/notify_discord.py
 python3 -m unittest discover scripts/tests
 ./gradlew :fabric:build -x test
 ./gradlew :neoforge:build
+./gradlew :forge:build
 
 # 整形だけを適用する
 ./gradlew format
@@ -139,5 +145,5 @@ python3 -m unittest discover scripts/tests
 3. **`ci-ok` だけが失敗する**
    - 依存ジョブのどれかが `failure` / `cancelled` です。ログの「依存ジョブの結果」行で内訳を確認できます。
 4. **意図したビルドジョブが走らない**
-   - `changes` ジョブの出力（fabric / neoforge）を確認してください。path filter の対象外ファイルしか
-     変更していない場合はスキップされます。
+   - `changes` ジョブの出力（fabric / neoforge / forge）を確認してください。path filter の対象外ファイル
+     しか変更していない場合はスキップされます。

@@ -19,7 +19,7 @@ gh pr create
 
 ## 開発コマンド
 
-このプロジェクトは Fabric / NeoForge のマルチローダー構成（Gradleマルチプロジェクト）。ローダー非依存のコードはルートの `src/main/java` に置かれ、`fabric/` と `neoforge/` の各サブプロジェクトがそれを参照しつつ、自分に不要なローダー固有ファイルを `exclude` している（`common/` ディレクトリは骨組みのみで未使用）。テストはローダー非依存のためルートの `src/test/java` に置き、`test` タスクを持つのは `fabric` サブプロジェクトのみ（`:fabric:test` が実質「共通コードのテスト」）。
+このプロジェクトは Fabric / NeoForge / Forge のマルチローダー構成（Gradleマルチプロジェクト）。ローダー非依存のコードはルートの `src/main/java` に置かれ、`fabric/` / `neoforge/` / `forge/` の各サブプロジェクトがそれを参照しつつ、自分に不要なローダー固有ファイルを `exclude` している（`common/` ディレクトリは骨組みのみで未使用）。テストはローダー非依存のためルートの `src/test/java` に置き、`test` タスクを持つのは `fabric` サブプロジェクトのみ（`:fabric:test` が実質「共通コードのテスト」）。
 
 ### ビルド
 ```bash
@@ -38,6 +38,9 @@ gradle :fabric:runClient
 # NeoForgeクライアントで実行
 gradle :neoforge:runClient
 
+# Forgeクライアントで実行
+gradle :forge:runClient
+
 # Fabric用にソースを生成してリマップ
 gradle :fabric:genSources
 ```
@@ -48,7 +51,7 @@ gradle :fabric:genSources
 
 ### プロジェクト情報
 - **グループID**: `org.etwas.streamtweaks`
-- **モジュール名**: `stream-tweaks`（`fabric/`, `neoforge/` の2アーティファクトをビルド）
+- **モジュール名**: `stream-tweaks`（`fabric/`, `neoforge/`, `forge/` の3アーティファクトをビルド）
 - **バージョン**: `gradle.properties` の `mod_version` を参照（頻繁に変わるためこのファイルには固定値を書かない）
 - **環境**: `client` (クライアント専用モッド)
 
@@ -56,12 +59,19 @@ gradle :fabric:genSources
 - **共通コンポジションルート**: `org.etwas.streamtweaks.mod.StreamTweaksCommon`, `org.etwas.streamtweaks.mod.TwitchClientBootstrap`（ローダー非依存の初期化ロジック）
 - **`ClientPlatform`**: 設定ディレクトリ取得などローダー差異を吸収するインターフェース（`org.etwas.streamtweaks.mod.platform.ClientPlatform`）
   - Fabric実装: `org.etwas.streamtweaks.mod.fabric.FabricClientPlatform`（`FabricLoader.getInstance().getConfigDir()`）
-  - NeoForge実装: `org.etwas.streamtweaks.mod.neoforge.NeoForgeClientPlatform`（`FMLPaths.CONFIGDIR.get()`）
+  - NeoForge実装: `org.etwas.streamtweaks.mod.neoforge.NeoForgeClientPlatform`（`FMLPaths.CONFIGDIR.get()`、パッケージは `net.neoforged.fml.loading`）
+  - Forge実装: `org.etwas.streamtweaks.mod.forge.ForgeClientPlatform`（`FMLPaths.CONFIGDIR.get()`、パッケージは `net.minecraftforge.fml.loading`。NeoForgeとクラス名は同じだがパッケージルートが異なる）
 - **Fabric専用エントリポイント**: `StreamTweaks`（main）/ `StreamTweaksClient`（client）/ `ModMenuIntegration`（modmenu）、いずれも `org.etwas.streamtweaks.mod` 直下
   - コマンド登録: `org.etwas.streamtweaks.mod.fabric.FabricTwitchCommandRegistrar`
 - **NeoForge専用エントリポイント**: `org.etwas.streamtweaks.mod.neoforge` パッケージの `NeoForgeStreamTweaksClient`, `NeoForgeStreamTweaksClientEvents`, `NeoForgeTwitchCommandRegistrar`
-- **設定ファイル**: `fabric.mod.json`（Fabric）/ `META-INF/neoforge.mods.toml`（NeoForge）
+- **Forge専用エントリポイント**: `org.etwas.streamtweaks.mod.forge` パッケージの `ForgeStreamTweaksClient`, `ForgeStreamTweaksClientEvents`, `ForgeTwitchCommandRegistrar`
+  - `ForgeStreamTweaksClient` は `@Mod(ForgeStreamTweaksClient.MOD_ID)`（`MOD_ID = "stream_tweaks"`）+ `(FMLJavaModLoadingContext context)` コンストラクタ（NeoForgeの `@Mod(value=,dist=)` + `(IEventBus, ModContainer)` とは異なる、Forge古典パターン）
+  - 設定画面登録は `MinecraftForge.registerConfigScreen(...)`（Forge公式Javadocに「the active mod container に登録される」と明記されており、呼び出し元Modのコンテナに紐付く仕様。NeoForgeの `registerExtensionPoint(IConfigScreenFactory.class, ...)` に相当）
+  - Mixin設定はNeoForgeの `mods.toml` 内 `[[mixins]]` 宣言ではなく、jarの `MANIFEST.MF` の `MixinConfigs` 属性 + `annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'` + 実行時 `--mixin.config` 引数で行う（`forge/build.gradle` 参照）
+  - `ForgeStreamTweaksClientEvents` はForge 65.1.0のEventBus 7系APIを直接使う（`@SubscribeEvent` + `MinecraftForge.EVENT_BUS.register(Class)` ではなく、各イベントクラスの静的 `BUS.addListener(...)`。旧APIは後方互換ヘルパー経由でしか動かないため）
+- **設定ファイル**: `fabric.mod.json`（Fabric）/ `META-INF/neoforge.mods.toml`（NeoForge）/ `META-INF/mods.toml`（Forge）
 - **Mixinファイル**: `stream-tweaks.mixins.json`（パッケージは `org.etwas.streamtweaks.presentation.mixin`、`compatibilityLevel: JAVA_25`）。`ChatComponentAccessor`, `FontManagerAccessor`, `FontStorageAccessor`, `FontStorageMixin`, `MutableComponentMixin` を実装済み（空ではない）
+  - `ChatComponentAccessor` / `FontManagerAccessor` / `FontStorageAccessor` / `FontStorageMixin` は `remap = false` を明示している（Forge の Mixin アノテーションプロセッサが3ローダー共通の `official` マッピングチャンネルを認識しないための対処。Fabric/NeoForgeの挙動には影響しない。詳細は `FontStorageMixin` のクラスコメント参照）
 
 ### 認証システム (twitch.auth パッケージ)
 - **AuthenticationOrchestrator**: 認証プロセス全体を統括するオーケストレーター
@@ -134,10 +144,11 @@ gradle :fabric:genSources
 
 ### 技術スタック
 - **Minecraft**: 26.2（Mojang公式マッピング / Mojmap。Yarnではない）
-- **対応ローダー**: Fabric / NeoForge
+- **対応ローダー**: Fabric / NeoForge / Forge
 - **Fabric Loader**: 0.19.3+
 - **Fabric API**: 0.155.2+26.2
 - **NeoForge**: 26.2.0.25-beta+
+- **Forge**: 65.1.0+（MinecraftForge、NeoForgeとは別プロジェクト。ForgeGradle 7系でビルド）
 - **Java 25**（`gradle.properties` の `java_version` が単一の真実。`build.gradle` の toolchain も CI の `.github/actions/setup-build` もこの値を参照するので、Java を上げるときはこの1行だけを変える）
 - **Gson**: 2.13.2 (JSON処理)
 - **CompletableFuture**: 非同期処理
@@ -145,8 +156,8 @@ gradle :fabric:genSources
 - **WebSocket**: WebSocket通信 (Java標準)
 
 ### 設定とビルド
-- **Gradle**: マルチプロジェクト構成。`net.fabricmc.fabric-loom` 1.16-SNAPSHOT（fabricサブプロジェクト）、`net.neoforged.moddev` 2.0.142（neoforgeサブプロジェクト）
-- **設定ディレクトリ**: `ClientPlatform` 経由で取得（Fabric: `FabricLoader.getInstance().getConfigDir()` / NeoForge: `FMLPaths.CONFIGDIR.get()`）、`MOD_ID` サブディレクトリを解決
+- **Gradle**: マルチプロジェクト構成。`net.fabricmc.fabric-loom` 1.16-SNAPSHOT（fabricサブプロジェクト）、`net.neoforged.moddev` 2.0.142（neoforgeサブプロジェクト）、`net.minecraftforge.gradle` 7.0.31（forgeサブプロジェクト、Gradle Plugin Portal経由で解決）
+- **設定ディレクトリ**: `ClientPlatform` 経由で取得（Fabric: `FabricLoader.getInstance().getConfigDir()` / NeoForge: `FMLPaths.CONFIGDIR.get()`（`net.neoforged`） / Forge: `FMLPaths.CONFIGDIR.get()`（`net.minecraftforge`））、`MOD_ID` サブディレクトリを解決
 - **認証ファイル**: `twitch-credentials.json` (設定ディレクトリに保存)
 - **Mixinパッケージ**: `org.etwas.streamtweaks.presentation.mixin` (`compatibilityLevel: JAVA_25`)
 
@@ -189,6 +200,8 @@ authOrchestrator.startAuthentication(uri -> {
 ## リリース手順
 
 タグの発行からビルド・公開までを `.github/workflows/release.yml`（**Release** ワークフロー）が1本で行う。手動で `git tag` / `git push` することは基本的に不要。
+
+> **Forgeは現時点で `release.yml` の対象外**。`loaders` 入力は `both`（Fabric+NeoForge）/ `fabric` / `neoforge` のみで、Forge向けのタグ採番・Modrinth公開・Discord通知には未対応（`build.yml` でのCIビルド確認までは対応済み）。Forgeの正式リリース対応は別PBIで扱う。
 
 > **背景**: 以前はタグ発行用ワークフローと `push: tags` トリガーの公開用ワークフローを分けていたが、GitHub Actions の仕様上「デフォルトの `GITHUB_TOKEN` で push したタグは他のワークフローをトリガーしない」という制限に引っかかり、タグは発行されても公開ワークフローが発火しない問題が起きた。そのため1本のワークフローに統合し、同一ジョブ内でタグ発行から公開まで完結させている。
 
