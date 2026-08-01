@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- 絵文字・バッジ表示用に内部で使用しているUnicode私用領域(PUA)のコードポイントが、リソースパック「Redstone Tweaks」が使用するコードポイントと衝突し、意図しないグリフに上書きされる不具合を修正
 
 ## [0.3.2] - 2026-07-31
 

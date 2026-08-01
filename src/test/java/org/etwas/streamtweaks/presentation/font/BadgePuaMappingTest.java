@@ -32,7 +32,18 @@ class BadgePuaMappingTest {
         int second = mapping.getOrAssign(CHANNEL_A, new BadgeKey("vip", "1")).orElseThrow();
 
         assertEquals(BASE, first);
-        assertEquals(BASE + 1, second);
+        // 0xE001〜0xE009はRedstone Tweaksとの競合を避けるため連続スキップされ、0xE00Aが割り当てられる
+        assertEquals(0xE00A, second);
+    }
+
+    @Test
+    void skipsWellKnownCodePointsFromRedstoneTweaks() {
+        for (int i = 0; i < 100; i++) {
+            int codePoint = mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + i, "1")).orElseThrow();
+            assertFalse(
+                    WellKnownPuaCodePoints.CODE_POINTS.contains(codePoint),
+                    "Redstone Tweaksが使用するコードポイントは割り当てられないこと: 0x" + Integer.toHexString(codePoint));
+        }
     }
 
     @Test
@@ -109,15 +120,16 @@ class BadgePuaMappingTest {
 
     @Test
     void assignsUpToMaxCodePointThenReturnsEmptyWhenExhausted() {
-        int totalSlots = MAX - BASE + 1;
+        long skippedInRange =
+                WellKnownPuaCodePoints.CODE_POINTS.stream().filter(cp -> cp >= BASE && cp <= MAX).count();
+        int totalSlots = (int) (MAX - BASE + 1 - skippedInRange);
+        Integer lastAssigned = null;
         for (int i = 0; i < totalSlots; i++) {
             Optional<Integer> assigned = mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + i, "1"));
             assertTrue(assigned.isPresent(), "レンジ内では常に割り当てられること: " + i);
+            lastAssigned = assigned.orElseThrow();
         }
-        assertEquals(
-                Optional.of(MAX),
-                mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + (totalSlots - 1), "1")),
-                "MAX_CODE_POINTちょうどまで割り当て可能であること");
+        assertEquals(Integer.valueOf(MAX), lastAssigned, "最後に割り当てられるコードポイントはMAX_CODE_POINTであること");
 
         Optional<Integer> overflow = mapping.getOrAssign(CHANNEL_A, new BadgeKey("overflow-set", "1"));
 

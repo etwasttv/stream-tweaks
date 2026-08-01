@@ -11,7 +11,9 @@ import org.etwas.streamtweaks.twitch.core.UserId;
  * (チャンネル, バッジの複合キー（{@link BadgeKey}）) → Unicode私用領域(PUA)コードポイントのマッピング。
  *
  * <p>絵文字用の {@link PuaMapping} とはPUAレンジを分けて {@code U+E000}〜{@code U+EFFF} を使う
- * （絵文字は {@code U+F000}〜{@code U+F8FF}）。バッジは種類数が少なく長期間不変なため、
+ * （絵文字は {@code U+F000}〜{@code U+F8FF}）。{@link WellKnownPuaCodePoints} に含まれる
+ * コードポイントはリソースパックとの競合を避けるため採番時にスキップする。
+ * バッジは種類数が少なく長期間不変なため、
  * {@link PuaMapping} のLRU evict戦略とは異なり、一度割り当てたコードポイントは
  * インスタンスが破棄されるまで保持し続ける（evictしない）。
  *
@@ -48,6 +50,9 @@ public class BadgePuaMapping {
         Integer existing = assignments.get(compositeKey);
         if (existing != null) {
             return Optional.of(existing);
+        }
+        while (nextCodePoint <= MAX_CODE_POINT && WellKnownPuaCodePoints.CODE_POINTS.contains(nextCodePoint)) {
+            nextCodePoint++;
         }
         if (nextCodePoint > MAX_CODE_POINT) {
             return Optional.empty();
