@@ -27,22 +27,23 @@ class BadgePuaMappingTest {
     }
 
     @Test
-    void assignsCodePointsStartingFromBase() {
+    void assignsFirstAvailableCodePointAfterSkippingWellKnownOnes() {
         int first = mapping.getOrAssign(CHANNEL_A, new BadgeKey("moderator", "1")).orElseThrow();
         int second = mapping.getOrAssign(CHANNEL_A, new BadgeKey("vip", "1")).orElseThrow();
 
-        assertEquals(BASE, first);
-        // 0xE001〜0xE009はRedstone Tweaksとの競合を避けるため連続スキップされ、0xE00Aが割り当てられる
-        assertEquals(0xE00A, second);
+        // BASE(0xE000)以降、Tooltips StylizedがほぼU+E000〜U+E43Dを埋め尽くしているため、
+        // 最初に空くのは欠番の0xE023・0xE024になる
+        assertEquals(0xE023, first);
+        assertEquals(0xE024, second);
     }
 
     @Test
-    void skipsWellKnownCodePointsFromRedstoneTweaks() {
+    void skipsWellKnownCodePoints() {
         for (int i = 0; i < 100; i++) {
             int codePoint = mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + i, "1")).orElseThrow();
             assertFalse(
                     WellKnownPuaCodePoints.CODE_POINTS.contains(codePoint),
-                    "Redstone Tweaksが使用するコードポイントは割り当てられないこと: 0x" + Integer.toHexString(codePoint));
+                    "リソースパックが使用するコードポイントは割り当てられないこと: 0x" + Integer.toHexString(codePoint));
         }
     }
 
