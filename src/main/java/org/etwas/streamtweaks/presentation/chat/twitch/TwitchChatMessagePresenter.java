@@ -14,6 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
+import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
 import org.etwas.streamtweaks.platform.PlatformId;
 import org.etwas.streamtweaks.presentation.chat.IntegratedChatMessagePresenter;
 import org.etwas.streamtweaks.presentation.chat.NormalizedChatMessage;
@@ -51,6 +52,7 @@ public class TwitchChatMessagePresenter {
     private final BadgePuaMapping badgePuaMapping;
     private final BadgeDownloader badgeDownloader;
     private final BadgeCatalogRepository badgeCatalogRepository;
+    private final StreamTweaksSettingsStore settingsStore;
     private final Gson gson;
     private final IntegratedChatMessagePresenter integratedPresenter;
 
@@ -60,6 +62,7 @@ public class TwitchChatMessagePresenter {
             BadgePuaMapping badgePuaMapping,
             BadgeDownloader badgeDownloader,
             BadgeCatalogRepository badgeCatalogRepository,
+            StreamTweaksSettingsStore settingsStore,
             Gson gson,
             IntegratedChatMessagePresenter integratedPresenter) {
         this.puaMapping = puaMapping;
@@ -67,6 +70,7 @@ public class TwitchChatMessagePresenter {
         this.badgePuaMapping = badgePuaMapping;
         this.badgeDownloader = badgeDownloader;
         this.badgeCatalogRepository = badgeCatalogRepository;
+        this.settingsStore = settingsStore;
         this.gson = gson;
         this.integratedPresenter = integratedPresenter;
     }
@@ -103,8 +107,13 @@ public class TwitchChatMessagePresenter {
             MutableComponent authorDisplay =
                     Component.literal(event.chatterUserName()).withStyle(resolveUsernameStyle(event.color()));
             UserId broadcasterId = new UserId(event.broadcasterUserId());
+            // 設定変更は新規メッセージのみに適用する要件のため、ここでの一度の判定結果を
+            // このメッセージの処理全体（buildBadges/scheduleBadgeDownloads双方）に使う。
+            // 既に表示済みのメッセージを遡って再構築することはしない。
+            boolean showBadges = settingsStore.showBadges();
             List<BadgeRequest> badgeRequests = new ArrayList<>();
-            List<Component> badges = buildBadges(broadcasterId, event.badges(), badgeRequests);
+            List<Component> badges =
+                    showBadges ? buildBadges(broadcasterId, event.badges(), badgeRequests) : List.of();
             NormalizedChatMessage message = new NormalizedChatMessage(
                     PlatformId.TWITCH,
                     sanitizeMessageId(event.messageId()),
@@ -115,7 +124,9 @@ public class TwitchChatMessagePresenter {
                     badges);
             integratedPresenter.present(message);
             scheduleEmoteDownloads(client, emoteRequests);
-            scheduleBadgeDownloads(client, badgeRequests);
+            if (showBadges) {
+                scheduleBadgeDownloads(client, badgeRequests);
+            }
         });
     }
 

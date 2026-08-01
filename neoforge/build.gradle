@@ -9,6 +9,9 @@ base {
 
 dependencies {
     implementation "com.google.code.gson:gson:${rootProject.gson_version}"
+    // NeoForge本体が推移的に持ち込むバージョンと同じもの（3.8.3）を明示指定する。
+    // 共通コードから直接使うライブラリなので、推移的依存に暗黙に頼らずここでも宣言しておく。
+    implementation "com.electronwill.night-config:toml:${rootProject.nightconfig_version}"
 }
 
 sourceSets {
