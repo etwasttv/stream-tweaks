@@ -65,7 +65,7 @@ public class StreamTweaksConfigScreen extends Screen {
     private static final int BODY_SPACING = 6;
 
     private static final int LOGIN_BUTTON_WIDTH = 60;
-    private static final int EDIT_BOX_WIDTH = 150;
+    private static final int EDIT_BOX_WIDTH = LABEL_COLUMN_WIDTH;
     private static final int CONNECT_BUTTON_WIDTH = 60;
     private static final int CONNECT_OWN_BUTTON_WIDTH = 230;
     private static final int SHOW_BADGES_BUTTON_WIDTH = 70;
@@ -257,9 +257,8 @@ public class StreamTweaksConfigScreen extends Screen {
     }
 
     /**
-     * ラベル(または入力欄)とボタンを横に並べた1行を作る。左側の幅は呼び出し側の
-     * ウィジェット自身の幅（{@link #LABEL_COLUMN_WIDTH}で固定したStringWidget、または
-     * EditBoxの固定幅）に従うため、行ごとにボタンの開始X座標が揃う。
+     * ラベル(または入力欄)とボタンを横に並べた1行を作る。左側の幅は
+     * {@link #LABEL_COLUMN_WIDTH} に揃え、行ごとのボタン開始X座標を合わせる。
      */
     private LinearLayout row(LayoutElement left, LayoutElement right) {
         LinearLayout row = LinearLayout.horizontal().spacing(ROW_SPACING);
