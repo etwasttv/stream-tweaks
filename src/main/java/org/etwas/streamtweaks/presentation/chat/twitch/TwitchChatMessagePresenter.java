@@ -17,6 +17,7 @@ import net.minecraft.network.chat.TextColor;
 import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
 import org.etwas.streamtweaks.platform.PlatformId;
 import org.etwas.streamtweaks.presentation.chat.IntegratedChatMessagePresenter;
+import org.etwas.streamtweaks.presentation.chat.MinecraftChatRows;
 import org.etwas.streamtweaks.presentation.chat.NormalizedChatMessage;
 import org.etwas.streamtweaks.presentation.font.BadgeDownloader;
 import org.etwas.streamtweaks.presentation.font.BadgePuaMapping;
@@ -194,6 +195,7 @@ public class TwitchChatMessagePresenter {
                         EmoteFontRegistry.getCurrent()
                                 .addGlyph(request.codePoint(), new EmoteGlyph(EmoteAnimation.ofStatic(image)));
                         EmoteFontRegistry.invalidateGlyphCache();
+                        MinecraftChatRows.refreshTrimmedMessages();
                     })));
         }
     }
@@ -276,6 +278,7 @@ public class TwitchChatMessagePresenter {
                         }
                         EmoteFontRegistry.getCurrent().addGlyph(request.codePoint(), new EmoteGlyph(animation));
                         EmoteFontRegistry.invalidateGlyphCache();
+                        MinecraftChatRows.refreshTrimmedMessages();
                     })));
         });
     }
