@@ -11,7 +11,9 @@ import org.etwas.streamtweaks.twitch.core.UserId;
  * (チャンネル, バッジの複合キー（{@link BadgeKey}）) → Unicode私用領域(PUA)コードポイントのマッピング。
  *
  * <p>絵文字用の {@link PuaMapping} とはPUAレンジを分けて {@code U+E000}〜{@code U+EFFF} を使う
- * （絵文字は {@code U+F000}〜{@code U+F8FF}）。バッジは種類数が少なく長期間不変なため、
+ * （絵文字は {@code U+F000}〜{@code U+F8FF}）。{@link WellKnownPuaCodePoints} に含まれる
+ * コードポイントはリソースパックとの競合を避けるため採番時にスキップする。
+ * バッジは種類数が少なく長期間不変なため、
  * {@link PuaMapping} のLRU evict戦略とは異なり、一度割り当てたコードポイントは
  * インスタンスが破棄されるまで保持し続ける（evictしない）。
  *
@@ -23,7 +25,8 @@ import org.etwas.streamtweaks.twitch.core.UserId;
  * グリフをそのまま使い回してしまい、Bの視聴者にAの画像が誤表示される。
  * グローバルバッジ（moderator/vip/turbo等、画像がチャンネル間で共通）についても一律で
  * broadcasterIdを含めるのは無駄なPUA消費に見えるが、バッジの延べ種類数は少なく
- * レンジ（4096件）に対して現実的な同時接続チャンネル数では枯渇しないため、
+ * レンジ（4096件、{@link WellKnownPuaCodePoints} によるスキップ分を除いても実用上十分な数）に
+ * 対して現実的な同時接続チャンネル数では枯渇しないため、
  * 「グローバル/チャンネル固有を区別する」より実装がシンプルで確実なこちらを採用する。
  *
  * <p>レンジ（4096件）を使い切った場合は例外を投げず {@link Optional#empty()} を返す。
@@ -48,6 +51,9 @@ public class BadgePuaMapping {
         Integer existing = assignments.get(compositeKey);
         if (existing != null) {
             return Optional.of(existing);
+        }
+        while (nextCodePoint <= MAX_CODE_POINT && WellKnownPuaCodePoints.CODE_POINTS.contains(nextCodePoint)) {
+            nextCodePoint++;
         }
         if (nextCodePoint > MAX_CODE_POINT) {
             return Optional.empty();

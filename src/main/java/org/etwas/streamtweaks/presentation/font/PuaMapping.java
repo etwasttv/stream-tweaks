@@ -11,9 +11,10 @@ import java.util.function.Consumer;
 /**
  * emote ID → Unicode PUA コードポイントのマッピング（LRU キャッシュ）。
  *
- * <p>U+F000 から順に割り当てる。上限 200 エントリを超えると最も古いエントリを evict し、
- * evict されたコードポイントをフリーリストに戻して再利用することで PUA 領域（U+F000〜U+F8FF）の
- * 枯渇を防ぐ。evict 時にはコールバックに evict されたコードポイントを通知する。
+ * <p>U+F000 から順に割り当てる（{@link WellKnownPuaCodePoints} に含まれるコードポイントは
+ * リソースパックとの競合を避けるためスキップする）。上限 200 エントリを超えると
+ * 最も古いエントリを evict し、evict されたコードポイントをフリーリストに戻して再利用することで
+ * PUA 領域（U+F000〜U+F8FF）の枯渇を防ぐ。evict 時にはコールバックに evict されたコードポイントを通知する。
  *
  * <p>Minecraft メインスレッドからの単一スレッドアクセスを前提とする（スレッドセーフではない）。
  * セッション内限定。再起動時にインスタンスを作り直すことでカウンタがリセットされる。
@@ -87,6 +88,9 @@ public class PuaMapping {
     private int allocate() {
         if (!freeList.isEmpty()) {
             return freeList.removeFirst();
+        }
+        while (nextCodePoint <= MAX_CODE_POINT && WellKnownPuaCodePoints.CODE_POINTS.contains(nextCodePoint)) {
+            nextCodePoint++;
         }
         if (nextCodePoint > MAX_CODE_POINT) {
             throw new IllegalStateException("PUA code point exhausted: all slots from U+F000 to U+F8FF are in use");
