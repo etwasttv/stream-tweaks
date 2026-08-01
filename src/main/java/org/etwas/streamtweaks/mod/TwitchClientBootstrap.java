@@ -70,7 +70,7 @@ public final class TwitchClientBootstrap {
         var badgePuaMapping = new BadgePuaMapping();
 
         var settingsRepository = new FileStreamTweaksSettingsRepository(
-                platform.configDir().resolve("stream-tweaks").resolve("stream-tweaks-config.json"));
+                platform.configDir().resolve("stream-tweaks").resolve("stream-tweaks-config.toml"));
         var settingsStore = new StreamTweaksSettingsStore(settingsRepository);
         // 設定画面（StreamTweaksConfigScreen）はUIレイヤーであり、コンポジションルートである
         // ここで組み立てたインスタンスを直接受け取れないため、TwitchApplicationServicesと

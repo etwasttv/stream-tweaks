@@ -18,7 +18,7 @@ class FileStreamTweaksSettingsRepositoryTest {
 
     @Test
     void loadReturnsDefaultWhenFileDoesNotExist() {
-        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.json");
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
         FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
 
         assertEquals(StreamTweaksSettings.DEFAULT, repository.load());
@@ -27,7 +27,7 @@ class FileStreamTweaksSettingsRepositoryTest {
 
     @Test
     void saveAndLoadRoundTripsTheSettings() {
-        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.json");
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
         FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
 
         repository.save(new StreamTweaksSettings(false));
@@ -37,20 +37,33 @@ class FileStreamTweaksSettingsRepositoryTest {
     }
 
     @Test
-    void loadReturnsDefaultWhenFileIsCorrupted() throws IOException {
-        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.json");
+    void loadReturnsDefaultWhenFileHasInvalidTomlSyntax() throws IOException {
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
         Files.createDirectories(settingsPath.getParent());
-        Files.writeString(settingsPath, "{ not valid json ");
+        // キーの後にYAML風の ':' が来ており、TOML構文として不正（'=' が必要）。
+        Files.writeString(settingsPath, "showBadges: true");
         FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
 
         assertEquals(StreamTweaksSettings.DEFAULT, repository.load());
     }
 
     @Test
-    void loadReturnsDefaultWhenFileContainsNullJson() throws IOException {
-        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.json");
+    void loadReturnsDefaultWhenShowBadgesHasWrongType() throws IOException {
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
         Files.createDirectories(settingsPath.getParent());
-        Files.writeString(settingsPath, "null");
+        // 構文自体は正しいが、showBadgesがbooleanではなく文字列になっている型不一致。
+        Files.writeString(settingsPath, "showBadges = \"yes please\"");
+        FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
+
+        assertEquals(StreamTweaksSettings.DEFAULT, repository.load());
+    }
+
+    @Test
+    void loadReturnsDefaultWhenFileDoesNotContainShowBadgesKey() throws IOException {
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
+        Files.createDirectories(settingsPath.getParent());
+        // 構文としては正しい空のTOMLだが、showBadgesキー自体が存在しない。
+        Files.writeString(settingsPath, "");
         FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
 
         assertEquals(StreamTweaksSettings.DEFAULT, repository.load());
@@ -58,7 +71,7 @@ class FileStreamTweaksSettingsRepositoryTest {
 
     @Test
     void saveOverwritesPreviouslySavedSettings() {
-        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.json");
+        Path settingsPath = configDir.resolve("stream-tweaks").resolve("stream-tweaks-config.toml");
         FileStreamTweaksSettingsRepository repository = new FileStreamTweaksSettingsRepository(settingsPath);
 
         repository.save(new StreamTweaksSettings(false));
