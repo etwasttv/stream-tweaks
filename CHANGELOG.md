@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 絵文字・バッジ表示用に内部で使用しているUnicode私用領域(PUA)のコードポイントが、リソースパック「Redstone Tweaks」「Tooltips Stylized」が使用するコードポイントと衝突し、意図しないグリフに上書きされる不具合を修正
 - Minecraft終了時にEventSub WebSocketのkeepalive監視スレッドや認証用ローカルコールバックサーバーを停止し、Modが作成したバックグラウンドリソースが残る可能性を修正
+- シングルプレイ終了時に、Twitch絵文字・バッジのフォントグリフがサーバースレッド上で遅延bakeされてクラッシュする可能性を修正
 
 ## [0.3.2] - 2026-07-31
 
