@@ -11,7 +11,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import org.etwas.streamtweaks.application.TwitchApplicationService;
-import org.etwas.streamtweaks.mod.StreamTweaksConfigScreen;
+import org.etwas.streamtweaks.mod.TwitchConnectionScreen;
 import org.etwas.streamtweaks.twitch.auth.AuthenticationResult;
 import org.etwas.streamtweaks.twitch.core.Login;
 
@@ -55,7 +55,7 @@ public final class TwitchCommand<S> {
         // clientExecutor で次の実行キューに回し、閉じる処理が終わってから画面を開く。
         clientExecutor.execute(() -> {
             Minecraft minecraft = Minecraft.getInstance();
-            minecraft.gui.setScreen(new StreamTweaksConfigScreen(minecraft.gui.screen()));
+            minecraft.gui.setScreen(new TwitchConnectionScreen(minecraft.gui.screen()));
         });
         return 1;
     }

@@ -74,7 +74,8 @@ public final class TwitchClientBootstrap {
         var settingsStore = new StreamTweaksSettingsStore(settingsRepository);
         // 設定画面（StreamTweaksConfigScreen）はUIレイヤーであり、コンポジションルートである
         // ここで組み立てたインスタンスを直接受け取れないため、TwitchApplicationServicesと
-        // 同様の静的ホルダー経由で公開する。
+        // 同様の静的ホルダー経由で公開する。TwitchConnectionScreenからConfigへ遷移した際も
+        // このホルダー経由で同一インスタンスを参照する。
         StreamTweaksSettingsServices.set(settingsStore);
 
         var callbackServer = new LocalCallbackServer();
