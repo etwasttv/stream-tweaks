@@ -85,6 +85,14 @@ public final class TwitchApplicationService {
         });
     }
 
+    /** Minecraft終了時に、資格情報を残したままModが保持するバックグラウンドリソースを破棄する。 */
+    public void shutdown() {
+        subscribedLogins.clear();
+        subscriptionService.shutdown();
+        authService.shutdown();
+        badgeCatalogRepository.clearAll();
+    }
+
     public Set<Login> getSubscribedLogins() {
         return Collections.unmodifiableSet(subscribedLogins);
     }

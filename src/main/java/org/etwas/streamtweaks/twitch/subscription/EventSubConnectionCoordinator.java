@@ -121,6 +121,10 @@ public final class EventSubConnectionCoordinator implements EventSubWebSocketCli
         webSocketClient.disconnect();
     }
 
+    public void shutdown() {
+        webSocketClient.shutdown();
+    }
+
     public boolean isConnected() {
         return stateHolder.isConnected();
     }

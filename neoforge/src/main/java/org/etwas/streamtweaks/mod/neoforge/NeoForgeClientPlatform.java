@@ -26,4 +26,9 @@ public final class NeoForgeClientPlatform implements ClientPlatform {
     public void registerClientDisconnect(Runnable listener) {
         NeoForgeStreamTweaksClientEvents.registerClientDisconnect(listener);
     }
+
+    @Override
+    public void registerClientStopping(Runnable listener) {
+        NeoForgeStreamTweaksClientEvents.registerClientStopping(listener);
+    }
 }
