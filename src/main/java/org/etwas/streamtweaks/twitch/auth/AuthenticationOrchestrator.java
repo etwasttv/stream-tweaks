@@ -28,7 +28,14 @@ public final class AuthenticationOrchestrator {
     }
 
     public void logout() {
+        callbackServer.stop();
         credentialRepository.deleteCredential();
+        state = AuthenticationState.IDLE;
+    }
+
+    /** Minecraft終了時に、進行中の認証用ローカルサーバーだけを停止する。 */
+    public void shutdown() {
+        callbackServer.stop();
         state = AuthenticationState.IDLE;
     }
 

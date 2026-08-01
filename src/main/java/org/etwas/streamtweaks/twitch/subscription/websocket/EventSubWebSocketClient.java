@@ -9,6 +9,8 @@ public interface EventSubWebSocketClient {
 
     void disconnect();
 
+    void shutdown();
+
     Optional<SessionId> getCurrentSessionId();
 
     void setListener(EventSubWebSocketListener listener);

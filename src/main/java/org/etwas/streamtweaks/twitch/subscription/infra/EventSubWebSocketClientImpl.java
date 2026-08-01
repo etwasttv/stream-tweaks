@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ public class EventSubWebSocketClientImpl implements EventSubWebSocketClient {
     private SessionId currentSessionId;
     private ScheduledFuture<?> keepaliveTimeoutTask;
     private int keepaliveTimeoutSeconds = 10;
+    private volatile boolean shutdown;
 
     public EventSubWebSocketClientImpl() {
         this.httpClient = HttpClient.newHttpClient();
@@ -53,6 +55,9 @@ public class EventSubWebSocketClientImpl implements EventSubWebSocketClient {
 
     @Override
     public CompletableFuture<SessionId> connect() {
+        if (shutdown) {
+            return CompletableFuture.failedFuture(new IllegalStateException("EventSub WebSocket client is shut down"));
+        }
         return connect(WEBSOCKET_URL);
     }
 
@@ -65,6 +70,13 @@ public class EventSubWebSocketClientImpl implements EventSubWebSocketClient {
             current.sendClose(WebSocket.NORMAL_CLOSURE, "Client disconnect");
         }
         handleDisconnection();
+    }
+
+    @Override
+    public void shutdown() {
+        shutdown = true;
+        disconnect();
+        scheduler.shutdownNow();
     }
 
     @Override
@@ -301,24 +313,32 @@ public class EventSubWebSocketClientImpl implements EventSubWebSocketClient {
     }
 
     private void resetKeepaliveTimeout() {
+        if (shutdown || scheduler.isShutdown()) {
+            return;
+        }
+
         cancelKeepaliveTimeout();
 
         // タイマー発火時にフィールドを読み直すと、reconnect直後の窓で「監視していたのとは別の
         // （確立したばかりの）接続」をabortしうる。監視対象をここで固定しておく。
         WebSocket monitored = this.webSocket;
 
-        keepaliveTimeoutTask = scheduler.schedule(
-                () -> {
-                    if (monitored == null || !isCurrentConnection(monitored)) {
-                        LOGGER.debug("Ignored keepalive timeout of a superseded EventSub connection");
-                        return;
-                    }
-                    LOGGER.warn("EventSub keepalive timeout ({}s)", keepaliveTimeoutSeconds);
-                    monitored.abort();
-                    handleDisconnection();
-                },
-                keepaliveTimeoutSeconds + 1,
-                TimeUnit.SECONDS);
+        try {
+            keepaliveTimeoutTask = scheduler.schedule(
+                    () -> {
+                        if (monitored == null || !isCurrentConnection(monitored)) {
+                            LOGGER.debug("Ignored keepalive timeout of a superseded EventSub connection");
+                            return;
+                        }
+                        LOGGER.warn("EventSub keepalive timeout ({}s)", keepaliveTimeoutSeconds);
+                        monitored.abort();
+                        handleDisconnection();
+                    },
+                    keepaliveTimeoutSeconds + 1,
+                    TimeUnit.SECONDS);
+        } catch (RejectedExecutionException e) {
+            LOGGER.debug("Ignored keepalive timeout scheduling after EventSub shutdown");
+        }
     }
 
     private void cancelKeepaliveTimeout() {

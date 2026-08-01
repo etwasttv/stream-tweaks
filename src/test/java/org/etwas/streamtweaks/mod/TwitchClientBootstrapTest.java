@@ -25,6 +25,7 @@ class TwitchClientBootstrapTest {
 
         assertNotNull(platform.endClientTickListener);
         assertNotNull(platform.clientDisconnectListener);
+        assertNotNull(platform.clientStoppingListener);
         assertSame(applicationService, commandRegistrar.applicationService);
         assertNotNull(commandRegistrar.clientExecutor);
     }
@@ -33,6 +34,7 @@ class TwitchClientBootstrapTest {
         private final Path configDir;
         private Runnable endClientTickListener;
         private Runnable clientDisconnectListener;
+        private Runnable clientStoppingListener;
 
         private FakeClientPlatform(Path configDir) {
             this.configDir = configDir;
@@ -56,6 +58,11 @@ class TwitchClientBootstrapTest {
         @Override
         public void registerClientDisconnect(Runnable listener) {
             clientDisconnectListener = listener;
+        }
+
+        @Override
+        public void registerClientStopping(Runnable listener) {
+            clientStoppingListener = listener;
         }
     }
 

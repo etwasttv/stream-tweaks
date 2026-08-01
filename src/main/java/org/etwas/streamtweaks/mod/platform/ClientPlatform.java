@@ -13,4 +13,6 @@ public interface ClientPlatform {
     void registerEndClientTick(Runnable listener);
 
     void registerClientDisconnect(Runnable listener);
+
+    void registerClientStopping(Runnable listener);
 }

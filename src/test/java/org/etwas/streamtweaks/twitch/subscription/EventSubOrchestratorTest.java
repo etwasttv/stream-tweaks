@@ -286,4 +286,11 @@ class EventSubOrchestratorTest {
 
         verify(webSocketClient, times(2)).disconnect();
     }
+
+    @Test
+    void shutdown_delegatesToWebSocketClientShutdown() {
+        orchestrator.shutdown();
+
+        verify(webSocketClient).shutdown();
+    }
 }

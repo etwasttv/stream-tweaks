@@ -57,4 +57,9 @@ public class EventSubOrchestrator {
     public void close() {
         coordinator.disconnect();
     }
+
+    /** Minecraft終了時に、再利用しないバックグラウンドリソースまで破棄する。 */
+    public void shutdown() {
+        coordinator.shutdown();
+    }
 }
