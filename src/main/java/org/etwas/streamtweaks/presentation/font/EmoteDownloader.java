@@ -12,6 +12,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +34,11 @@ public class EmoteDownloader {
     private static final String CDN_URL_STATIC = "https://static-cdn.jtvnw.net/emoticons/v2/%s/static/dark/1.0";
     private static final String CDN_URL_ANIMATED = "https://static-cdn.jtvnw.net/emoticons/v2/%s/animated/dark/2.0";
     private static final int MAX_SIZE_BYTES = 512 * 1024;
+    // CDNが応答しない場合、download()はCompletableFuture.supplyAsync（ForkJoinPool.commonPool）上で
+    // httpClient.send()により同期ブロックする。タイムアウトが無いと、複数のエモートが同時にハングした際に
+    // commonPoolのワーカースレッドを占有し尽くし、このMod以外を含むJVM全体のsupplyAsync呼び出しが
+    // 巻き添えで停止しうる。BadgeDownloaderと同じ方針でタイムアウトを明示する。
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     @FunctionalInterface
     public interface ImageDecoder {
@@ -50,7 +56,11 @@ public class EmoteDownloader {
     private final AnimationDecoder animationDecoder;
 
     public EmoteDownloader(Path cacheDir) {
-        this(cacheDir, HttpClient.newHttpClient(), NativeImage::read, GifFrameDecoder::decode);
+        this(
+                cacheDir,
+                HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(),
+                NativeImage::read,
+                GifFrameDecoder::decode);
     }
 
     EmoteDownloader(
@@ -132,6 +142,7 @@ public class EmoteDownloader {
         String url = animated ? CDN_URL_ANIMATED : CDN_URL_STATIC;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url.formatted(emoteId)))
+                .timeout(REQUEST_TIMEOUT)
                 .GET()
                 .build();
 

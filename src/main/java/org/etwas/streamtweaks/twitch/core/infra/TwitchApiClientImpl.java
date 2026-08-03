@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.etwas.streamtweaks.twitch.auth.TwitchCredential;
 import org.etwas.streamtweaks.twitch.auth.TwitchCredentialRepository;
@@ -27,6 +28,10 @@ public class TwitchApiClientImpl implements TwitchApiClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(TwitchApiClientImpl.class);
     // https://dev.twitch.tv/docs/api/reference/#get-users
     private static final String USERS_URL = "https://api.twitch.tv/helix/users";
+    // Twitch APIが応答不能になった場合にsendAsync()のFutureが永久にpendingのまま残るのを防ぐ
+    // （getUserId()は/twitch connect・disconnectのクリティカルパスにあり、ハングするとコマンドが
+    // 応答なしのまま復帰不能になる）。
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     private final TwitchCredentialRepository credentialRepository;
     private final HttpClient client;
@@ -34,7 +39,7 @@ public class TwitchApiClientImpl implements TwitchApiClient {
 
     public TwitchApiClientImpl(TwitchCredentialRepository credentialRepository) {
         this.credentialRepository = credentialRepository;
-        this.client = HttpClient.newHttpClient();
+        this.client = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
         this.gson = new GsonBuilder()
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
                 .create();
@@ -58,6 +63,7 @@ public class TwitchApiClientImpl implements TwitchApiClient {
                 .uri(URI.create(USERS_URL + "?login=" + login.value()))
                 .header("Authorization", "Bearer " + credential.accessToken().value())
                 .header("Client-Id", TwitchConstants.CLIENT_ID)
+                .timeout(REQUEST_TIMEOUT)
                 .GET()
                 .build();
 

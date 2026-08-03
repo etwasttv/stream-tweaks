@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Minecraft終了時にEventSub WebSocketのkeepalive監視スレッドや認証用ローカルコールバックサーバーを停止し、Modが作成したバックグラウンドリソースが残る可能性を修正
 - シングルプレイ終了時に、Twitch絵文字・バッジのフォントグリフがサーバースレッド上で遅延bakeされてクラッシュする可能性を修正
 - EventSub WebSocketの接続確立自体（DNS解決失敗・TLSハンドシェイク失敗等）が失敗した場合に、接続状態が復帰不能なままハングし続ける不具合を修正
+- Twitch Helix API（ユーザー取得・EventSub購読・チャットバッジ取得）、OAuthトークン検証、およびエモート画像ダウンロードのHTTPリクエストにタイムアウトが設定されておらず、Twitch側が応答不能になった場合にリクエストが無期限にハングしうる不具合を修正。特にエモートダウンロードは共有スレッドプール（ForkJoinPool.commonPool）上で同期的に待機するため、複数のダウンロードが同時にハングするとMod外にも影響しうる問題だった。トークン検証は `/twitch login` 完了直後の処理がこれに該当し、既存の100秒タイムアウト（コールバック待ち区間のみが対象）では防げなかった
 
 ## [0.3.2] - 2026-07-31
 

@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,10 @@ public class TwitchChatBadgeApiImpl implements TwitchChatBadgeApi {
     private static final Logger LOGGER = LoggerFactory.getLogger(TwitchChatBadgeApiImpl.class);
     private static final String GLOBAL_BADGES_URL = "https://api.twitch.tv/helix/chat/badges/global";
     private static final String CHANNEL_BADGES_URL = "https://api.twitch.tv/helix/chat/badges";
+    // Twitch APIが応答不能になった場合にsendAsync()のFutureが永久にpendingのまま残るのを防ぐ
+    // （BadgeCatalogRepositoryのキャッシュはこのFutureをそのまま保持するため、ハングすると
+    // 該当チャンネルのバッジが永久に取得できず、再接続してもリトライされなくなる）。
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     private final TwitchCredentialRepository credentialRepository;
     private final HttpClient client;
@@ -44,7 +49,7 @@ public class TwitchChatBadgeApiImpl implements TwitchChatBadgeApi {
         // set_id/image_url_4x のような数字混じりのフィールド名はFieldNamingPolicyの
         // キャメルケース分割が想定通りに働かないため、各DTOフィールドに @SerializedName を
         // 明示する方針（ChatMessageNotificationと同じ流儀）にし、ポリシーは適用しない。
-        this(credentialRepository, HttpClient.newHttpClient(), new Gson());
+        this(credentialRepository, HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(), new Gson());
     }
 
     // HTTPレベルの単体テストのためにHttpClient/Gsonを注入できるようにしたパッケージプライベート
@@ -84,6 +89,7 @@ public class TwitchChatBadgeApiImpl implements TwitchChatBadgeApi {
                 .uri(URI.create(url))
                 .header("Authorization", "Bearer " + credential.accessToken().value())
                 .header("Client-Id", TwitchConstants.CLIENT_ID)
+                .timeout(REQUEST_TIMEOUT)
                 .GET()
                 .build();
 
