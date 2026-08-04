@@ -27,12 +27,24 @@ class BadgePuaMappingTest {
     }
 
     @Test
-    void assignsCodePointsStartingFromBase() {
+    void assignsFirstAvailableCodePointAfterSkippingWellKnownOnes() {
         int first = mapping.getOrAssign(CHANNEL_A, new BadgeKey("moderator", "1")).orElseThrow();
         int second = mapping.getOrAssign(CHANNEL_A, new BadgeKey("vip", "1")).orElseThrow();
 
-        assertEquals(BASE, first);
-        assertEquals(BASE + 1, second);
+        // BASE(0xE000)以降、Tooltips StylizedがほぼU+E000〜U+E43Dを埋め尽くしているため、
+        // 最初に空くのは欠番の0xE023・0xE024になる
+        assertEquals(0xE023, first);
+        assertEquals(0xE024, second);
+    }
+
+    @Test
+    void skipsWellKnownCodePoints() {
+        for (int i = 0; i < 100; i++) {
+            int codePoint = mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + i, "1")).orElseThrow();
+            assertFalse(
+                    WellKnownPuaCodePoints.CODE_POINTS.contains(codePoint),
+                    "リソースパックが使用するコードポイントは割り当てられないこと: 0x" + Integer.toHexString(codePoint));
+        }
     }
 
     @Test
@@ -109,15 +121,16 @@ class BadgePuaMappingTest {
 
     @Test
     void assignsUpToMaxCodePointThenReturnsEmptyWhenExhausted() {
-        int totalSlots = MAX - BASE + 1;
+        long skippedInRange =
+                WellKnownPuaCodePoints.CODE_POINTS.stream().filter(cp -> cp >= BASE && cp <= MAX).count();
+        int totalSlots = (int) (MAX - BASE + 1 - skippedInRange);
+        Integer lastAssigned = null;
         for (int i = 0; i < totalSlots; i++) {
             Optional<Integer> assigned = mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + i, "1"));
             assertTrue(assigned.isPresent(), "レンジ内では常に割り当てられること: " + i);
+            lastAssigned = assigned.orElseThrow();
         }
-        assertEquals(
-                Optional.of(MAX),
-                mapping.getOrAssign(CHANNEL_A, new BadgeKey("set-" + (totalSlots - 1), "1")),
-                "MAX_CODE_POINTちょうどまで割り当て可能であること");
+        assertEquals(Integer.valueOf(MAX), lastAssigned, "最後に割り当てられるコードポイントはMAX_CODE_POINTであること");
 
         Optional<Integer> overflow = mapping.getOrAssign(CHANNEL_A, new BadgeKey("overflow-set", "1"));
 

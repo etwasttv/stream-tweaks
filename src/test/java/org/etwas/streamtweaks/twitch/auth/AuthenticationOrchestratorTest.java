@@ -113,6 +113,7 @@ class AuthenticationOrchestratorTest {
     @Test
     void logout_deletesCredentialAndAllowsReAuthentication() {
         orchestrator.logout();
+        verify(callbackServer).stop();
         verify(credentialRepository).deleteCredential();
 
         CompletableFuture<OAuthCallback> callbackFuture = new CompletableFuture<>();
@@ -125,6 +126,14 @@ class AuthenticationOrchestratorTest {
         });
 
         assertEquals(AuthenticationResult.SUCCESS, result.join());
+    }
+
+    @Test
+    void shutdown_stopsCallbackServerWithoutDeletingCredential() {
+        orchestrator.shutdown();
+
+        verify(callbackServer).stop();
+        verify(credentialRepository, never()).deleteCredential();
     }
 
     @Test

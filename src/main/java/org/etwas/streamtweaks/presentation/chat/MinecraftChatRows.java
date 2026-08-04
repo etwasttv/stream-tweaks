@@ -27,10 +27,7 @@ public final class MinecraftChatRows {
      */
     public static Set<DisplayedMessageKey> remove(Set<DisplayedMessageKey> keys) {
         Minecraft client = Minecraft.getInstance();
-        if (client == null || client.gui == null || client.gui.hud == null) {
-            return Set.of();
-        }
-        ChatComponent chat = client.gui.hud.getChat();
+        ChatComponent chat = getChat(client);
         if (chat == null) {
             return Set.of();
         }
@@ -46,6 +43,27 @@ public final class MinecraftChatRows {
             chat.scrollChat(0);
         }
         return removed;
+    }
+
+    /**
+     * チャット行を再分割し、動的に追加されたグリフの遅延bakeをクライアントスレッド上で先に済ませる。
+     */
+    public static void refreshTrimmedMessages() {
+        Minecraft client = Minecraft.getInstance();
+        ChatComponent chat = getChat(client);
+        if (chat == null) {
+            return;
+        }
+
+        ChatComponentAccessor accessor = (ChatComponentAccessor) chat;
+        accessor.streamTweaks$refreshTrimmedMessages();
+    }
+
+    private static ChatComponent getChat(Minecraft client) {
+        if (client == null || client.gui == null || client.gui.hud == null) {
+            return null;
+        }
+        return client.gui.hud.getChat();
     }
 
     /**

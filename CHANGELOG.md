@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - バッジ表示設定をTwitchチャンネル接続画面から分離し、独立したConfig画面を新設。Config画面の変更は"Save & Quit"ボタン押下時にのみ保存され、Back/ESCで閉じた場合は破棄されるよう変更（従来はトグル操作の都度即時保存していた）
 
 ### Fixed
+- 絵文字・バッジ表示用に内部で使用しているUnicode私用領域(PUA)のコードポイントが、リソースパック「Redstone Tweaks」「Tooltips Stylized」が使用するコードポイントと衝突し、意図しないグリフに上書きされる不具合を修正
+- Minecraft終了時にEventSub WebSocketのkeepalive監視スレッドや認証用ローカルコールバックサーバーを停止し、Modが作成したバックグラウンドリソースが残る可能性を修正
+- シングルプレイ終了時に、Twitch絵文字・バッジのフォントグリフがサーバースレッド上で遅延bakeされてクラッシュする可能性を修正
 
 ## [0.3.2] - 2026-07-31
 

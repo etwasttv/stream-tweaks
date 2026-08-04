@@ -228,6 +228,18 @@ class TwitchApplicationServiceTest {
         verify(authService, times(2)).logout();
     }
 
+    // --- shutdown ---
+
+    @Test
+    void shutdown_releasesRuntimeResourcesWithoutDeletingCredential() {
+        service.shutdown();
+
+        verify(subscriptionService).shutdown();
+        verify(authService).shutdown();
+        verify(authService, never()).logout();
+        verify(subscriptionService, never()).unsubscribeAll();
+    }
+
     // --- suggestOwnChannelLogin ---
 
     @Test

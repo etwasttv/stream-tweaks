@@ -126,6 +126,7 @@ public final class TwitchClientBootstrap {
 
         var applicationService = new TwitchApplicationService(
                 authenticationOrchestrator, eventSubOrchestrator, apiClient, badgeCatalogRepository);
+        platform.registerClientStopping(applicationService::shutdown);
         commandRegistrar.register(applicationService, clientExecutor);
 
         return applicationService;
