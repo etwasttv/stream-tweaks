@@ -3,7 +3,6 @@ package org.etwas.streamtweaks.twitch.subscription.infra;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
