@@ -14,10 +14,9 @@ import org.etwas.streamtweaks.config.StreamTweaksSettingsStore;
 /**
  * Stream Tweaksの表示設定を扱う画面。
  *
- * <p>{@link TwitchConnectionScreen} から独立した画面で、トグル操作は {@link #pendingShowBadges}
- * という画面内ローカルの下書き値にのみ反映する。{@link StreamTweaksSettingsStore}
- * （write-throughキャッシュ、変更は即座にディスクへ保存される）への書き込みは
- * "Save & Quit" ボタン押下時にのみ行い、ESC/Backで閉じた場合は下書きを破棄する。
+ * <p>{@link TwitchConnectionScreen} から独立した画面で、トグル操作は即座に
+ * {@link StreamTweaksSettingsStore}（write-throughキャッシュ、変更は即座にディスクへ保存される）
+ * へ反映される。フッターのBackボタンは単に画面を閉じるだけ。
  */
 public class StreamTweaksConfigScreen extends Screen {
 
@@ -28,7 +27,6 @@ public class StreamTweaksConfigScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
     private static final int LABEL_COLUMN_WIDTH = 170;
     private static final int SHOW_BADGES_BUTTON_WIDTH = 70;
-    private static final int SAVE_AND_QUIT_BUTTON_WIDTH = 100;
     private static final int BACK_BUTTON_WIDTH = 100;
 
     private static final int ROW_SPACING = 8;
@@ -38,14 +36,6 @@ public class StreamTweaksConfigScreen extends Screen {
     private static final int MIN_SCROLL_AREA_HEIGHT = BUTTON_HEIGHT * 2;
 
     private final Screen parent;
-
-    /**
-     * バッジ表示トグルの下書き値。{@code null}はまだStoreから初期化していないことを示す。
-     * {@code init()}は画面リサイズ等でも呼ばれ得るため、毎回Storeの値で上書きすると
-     * 未保存の下書きが黙って失われる。そのため初回のみStoreから読み込み、以降は
-     * ユーザー操作による変更のみを保持する。
-     */
-    private Boolean pendingShowBadges;
 
     private HeaderAndFooterLayout layout;
     private ScrollableLayout scrollArea;
@@ -58,9 +48,6 @@ public class StreamTweaksConfigScreen extends Screen {
     @Override
     protected void init() {
         StreamTweaksSettingsStore settingsStore = StreamTweaksSettingsServices.get();
-        if (pendingShowBadges == null) {
-            pendingShowBadges = settingsStore != null && settingsStore.showBadges();
-        }
 
         this.layout = new HeaderAndFooterLayout(this);
         this.layout.addTitleHeader(this.title, this.font);
@@ -79,7 +66,7 @@ public class StreamTweaksConfigScreen extends Screen {
             // displayOnlyValue() で値（Enabled/Disabled）のみを表示させる。name には
             // narration（読み上げ）用にラベルを渡す。
             CycleButton<Boolean> showBadgesBtn = CycleButton.booleanBuilder(
-                            Component.literal("Enabled"), Component.literal("Disabled"), pendingShowBadges)
+                            Component.literal("Enabled"), Component.literal("Disabled"), settingsStore.showBadges())
                     .displayOnlyValue()
                     .create(
                             0,
@@ -87,7 +74,7 @@ public class StreamTweaksConfigScreen extends Screen {
                             SHOW_BADGES_BUTTON_WIDTH,
                             BUTTON_HEIGHT,
                             Component.literal("Show Twitch Badges"),
-                            (button, value) -> pendingShowBadges = value);
+                            (button, value) -> settingsStore.setShowBadges(value));
             body.addChild(row(showBadgesLabel, showBadgesBtn));
         } else {
             body.addChild(new StringWidget(
@@ -98,15 +85,10 @@ public class StreamTweaksConfigScreen extends Screen {
         this.scrollArea.setMinWidth(CONTENT_MIN_WIDTH);
         this.layout.addToContents(this.scrollArea);
 
-        Button saveAndQuitBtn = Button.builder(Component.literal("Save & Quit"), button -> doSaveAndQuit(settingsStore))
-                .width(SAVE_AND_QUIT_BUTTON_WIDTH)
-                .build();
-        saveAndQuitBtn.active = settingsStore != null;
         Button backBtn = Button.builder(Component.translatable("gui.back"), button -> this.onClose())
                 .width(BACK_BUTTON_WIDTH)
                 .build();
         LinearLayout footer = LinearLayout.horizontal().spacing(ROW_SPACING);
-        footer.addChild(saveAndQuitBtn);
         footer.addChild(backBtn);
         this.layout.addToFooter(footer);
 
@@ -146,12 +128,5 @@ public class StreamTweaksConfigScreen extends Screen {
     @Override
     public void onClose() {
         this.minecraft.gui.setScreen(this.parent);
-    }
-
-    private void doSaveAndQuit(StreamTweaksSettingsStore settingsStore) {
-        if (settingsStore != null) {
-            settingsStore.setShowBadges(pendingShowBadges);
-        }
-        this.onClose();
     }
 }
