@@ -89,70 +89,83 @@ public class EventSubWebSocketClientImpl implements EventSubWebSocketClient {
         this.listener = listener;
     }
 
-    private CompletableFuture<SessionId> connect(String url) {
+    // パッケージプライベート: テストから到達不能なURLを注入し、
+    // ハンドシェイク失敗時にsessionFutureが確実に完了することを検証できるようにする。
+    CompletableFuture<SessionId> connect(String url) {
         CompletableFuture<SessionId> sessionFuture = new CompletableFuture<>();
 
-        httpClient.newWebSocketBuilder().buildAsync(URI.create(url), new WebSocket.Listener() {
+        CompletableFuture<WebSocket> handshake = httpClient.newWebSocketBuilder().buildAsync(
+                URI.create(url), new WebSocket.Listener() {
 
-            /**
-             * この接続専用の受信バッファ。インスタンスフィールドで共有すると、
-             * reconnect中に旧接続と新接続のonTextが並行して書き込み、JSONが混線しうる。
-             */
-            private final StringBuilder messageBuffer = new StringBuilder();
+                    /**
+                     * この接続専用の受信バッファ。インスタンスフィールドで共有すると、
+                     * reconnect中に旧接続と新接続のonTextが並行して書き込み、JSONが混線しうる。
+                     */
+                    private final StringBuilder messageBuffer = new StringBuilder();
 
-            @Override
-            public void onOpen(WebSocket webSocket) {
-                LOGGER.info("EventSub WebSocket connected");
-                EventSubWebSocketClientImpl.this.webSocket = webSocket;
-                webSocket.request(1);
-                WebSocket.Listener.super.onOpen(webSocket);
-            }
+                    @Override
+                    public void onOpen(WebSocket webSocket) {
+                        LOGGER.info("EventSub WebSocket connected");
+                        EventSubWebSocketClientImpl.this.webSocket = webSocket;
+                        webSocket.request(1);
+                        WebSocket.Listener.super.onOpen(webSocket);
+                    }
 
-            @Override
-            public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-                messageBuffer.append(data);
+                    @Override
+                    public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+                        messageBuffer.append(data);
 
-                if (last) {
-                    String message = messageBuffer.toString();
-                    messageBuffer.setLength(0);
-                    handleMessage(message, sessionFuture);
-                }
+                        if (last) {
+                            String message = messageBuffer.toString();
+                            messageBuffer.setLength(0);
+                            handleMessage(message, sessionFuture);
+                        }
 
-                webSocket.request(1);
-                return CompletableFuture.completedFuture(null);
-            }
+                        webSocket.request(1);
+                        return CompletableFuture.completedFuture(null);
+                    }
 
-            @Override
-            public CompletionStage<?> onPing(WebSocket webSocket, ByteBuffer message) {
-                webSocket.request(1);
-                return WebSocket.Listener.super.onPing(webSocket, message);
-            }
+                    @Override
+                    public CompletionStage<?> onPing(WebSocket webSocket, ByteBuffer message) {
+                        webSocket.request(1);
+                        return WebSocket.Listener.super.onPing(webSocket, message);
+                    }
 
-            @Override
-            public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
-                webSocket.request(1);
-                return WebSocket.Listener.super.onPong(webSocket, message);
-            }
+                    @Override
+                    public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
+                        webSocket.request(1);
+                        return WebSocket.Listener.super.onPong(webSocket, message);
+                    }
 
-            @Override
-            public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-                LOGGER.info("EventSub WebSocket closed: {} - {}", statusCode, reason);
-                if (isCurrentConnection(webSocket)) {
-                    handleDisconnection();
-                } else {
-                    LOGGER.debug("Ignored close of a superseded EventSub connection");
-                }
-                return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
-            }
+                    @Override
+                    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+                        LOGGER.info("EventSub WebSocket closed: {} - {}", statusCode, reason);
+                        if (isCurrentConnection(webSocket)) {
+                            handleDisconnection();
+                        } else {
+                            LOGGER.debug("Ignored close of a superseded EventSub connection");
+                        }
+                        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
+                    }
 
-            @Override
-            public void onError(WebSocket webSocket, Throwable error) {
-                LOGGER.error("EventSub WebSocket error", error);
-                if (isCurrentConnection(webSocket)) {
-                    handleDisconnection();
-                }
-                sessionFuture.completeExceptionally(error);
-            }
+                    @Override
+                    public void onError(WebSocket webSocket, Throwable error) {
+                        LOGGER.error("EventSub WebSocket error", error);
+                        if (isCurrentConnection(webSocket)) {
+                            handleDisconnection();
+                        }
+                        sessionFuture.completeExceptionally(error);
+                    }
+                });
+
+        // buildAsync()自体が失敗した場合（DNS解決失敗・TLSハンドシェイク失敗・接続不能等）、
+        // WebSocketがまだ存在しないためonOpen/onErrorのどちらも呼ばれず、sessionFutureが
+        // 永久にpendingのまま残ってしまう（ensureConnected()がCONNECTING状態のまま復帰不能になる）。
+        // それを防ぐため、buildAsyncの失敗を明示的にsessionFutureへ伝播させる。
+        handshake.exceptionally(ex -> {
+            LOGGER.error("Failed to establish EventSub WebSocket connection", ex);
+            sessionFuture.completeExceptionally(ex);
+            return null;
         });
 
         return sessionFuture;

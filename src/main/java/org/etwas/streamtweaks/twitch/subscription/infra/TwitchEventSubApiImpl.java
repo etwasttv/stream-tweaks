@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.etwas.streamtweaks.twitch.auth.TwitchCredential;
 import org.etwas.streamtweaks.twitch.auth.TwitchCredentialRepository;
@@ -30,6 +31,10 @@ public class TwitchEventSubApiImpl implements TwitchEventSubApi {
     private static final Logger LOGGER = LoggerFactory.getLogger(TwitchEventSubApiImpl.class);
     // https://dev.twitch.tv/docs/api/reference/#create-eventsub-subscription
     private static final String EVENTSUB_URL = "https://api.twitch.tv/helix/eventsub/subscriptions";
+    // Twitch APIが応答不能になった場合にsendAsync()のFutureが永久にpendingのまま残るのを防ぐ
+    // （SubscriptionReconciler.reconcile()のCompletableFuture.allOf()がこれらに依存しており、
+    // 1件でもハングすると購読/購読解除全体が完了不能になる）。
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     private final TwitchCredentialRepository credentialRepository;
     private final HttpClient client;
@@ -37,7 +42,7 @@ public class TwitchEventSubApiImpl implements TwitchEventSubApi {
 
     public TwitchEventSubApiImpl(TwitchCredentialRepository credentialRepository) {
         this.credentialRepository = credentialRepository;
-        this.client = HttpClient.newHttpClient();
+        this.client = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
         this.gson = new GsonBuilder()
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
                 .create();
@@ -90,6 +95,7 @@ public class TwitchEventSubApiImpl implements TwitchEventSubApi {
                 .header("Authorization", "Bearer " + credential.accessToken().value())
                 .header("Client-Id", TwitchConstants.CLIENT_ID)
                 .header("Content-Type", "application/json")
+                .timeout(REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                 .build();
 
@@ -122,6 +128,7 @@ public class TwitchEventSubApiImpl implements TwitchEventSubApi {
                 .uri(URI.create(EVENTSUB_URL + "?id=" + subscriptionId.value()))
                 .header("Authorization", "Bearer " + credential.accessToken().value())
                 .header("Client-Id", TwitchConstants.CLIENT_ID)
+                .timeout(REQUEST_TIMEOUT)
                 .DELETE()
                 .build();
 

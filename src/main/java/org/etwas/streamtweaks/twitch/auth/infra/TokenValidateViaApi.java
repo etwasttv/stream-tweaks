@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.time.Duration;
 import java.util.List;
 import org.etwas.streamtweaks.twitch.auth.AccessToken;
 import org.etwas.streamtweaks.twitch.auth.TokenValidationResult;
@@ -16,7 +17,13 @@ import org.etwas.streamtweaks.twitch.core.UserId;
 public class TokenValidateViaApi implements TokenValidator {
     // https://dev.twitch.tv/docs/authentication/validate-tokens/#how-to-validate-a-token
     private final String VALIDATE_URL = "https://id.twitch.tv/oauth2/validate";
-    private final HttpClient client = HttpClient.newHttpClient();
+    // validateToken()はclient.send()で同期ブロックする。タイムアウトが無いと、id.twitch.tvが
+    // 応答不能になった場合にAuthenticationOrchestrator.startAuthentication()のFutureが
+    // 永久にハングする（callbackServer.onCallback()に付けたorTimeoutはコールバック待ちの区間だけを
+    // 保護しており、コールバック受信後のこのトークン検証呼び出し自体はその対象外のため）。
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+    private final HttpClient client =
+            HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
     private final Gson gson = new GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
             .create();
@@ -26,6 +33,7 @@ public class TokenValidateViaApi implements TokenValidator {
         var request = HttpRequest.newBuilder()
                 .uri(java.net.URI.create(VALIDATE_URL))
                 .header("Authorization", "OAuth " + token.value())
+                .timeout(REQUEST_TIMEOUT)
                 .GET()
                 .build();
 
