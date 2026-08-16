@@ -10,6 +10,6 @@ public class ModMenuIntegration implements ModMenuApi {
 
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        return parent -> new StreamTweaksConfigScreen(parent);
+        return parent -> new TwitchConnectionScreen(parent);
     }
 }

@@ -7,9 +7,9 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 import org.etwas.streamtweaks.mod.StreamTweaksCommon;
-import org.etwas.streamtweaks.mod.StreamTweaksConfigScreen;
 import org.etwas.streamtweaks.mod.TwitchApplicationServices;
 import org.etwas.streamtweaks.mod.TwitchClientBootstrap;
+import org.etwas.streamtweaks.mod.TwitchConnectionScreen;
 
 @Mod(value = NeoForgeStreamTweaksClient.MOD_ID, dist = Dist.CLIENT)
 public final class NeoForgeStreamTweaksClient {
@@ -21,6 +21,6 @@ public final class NeoForgeStreamTweaksClient {
                 new NeoForgeClientPlatform(), NeoForgeTwitchCommandRegistrar::register));
         NeoForge.EVENT_BUS.register(NeoForgeStreamTweaksClientEvents.class);
         container.registerExtensionPoint(
-                IConfigScreenFactory.class, (modContainer, parent) -> new StreamTweaksConfigScreen(parent));
+                IConfigScreenFactory.class, (modContainer, parent) -> new TwitchConnectionScreen(parent));
     }
 }
